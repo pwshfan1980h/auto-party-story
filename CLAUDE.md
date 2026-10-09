@@ -12,7 +12,7 @@
 
 ## Stack and layout (target)
 - TypeScript + Vite + Three.js, orthographic camera at the classic isometric angle. Same stack as `~/Projects/paperman-2`; borrow its Vite and Pages setup.
-- `src/sim/`: pure combat and run logic. **No Three.js or DOM imports.** It outputs an event log (`{t, actor, ability, targets, dmg, crit}`).
+- `src/sim/`: pure combat and run logic, real time on a fixed tick. **No Three.js or DOM imports.** It outputs an event log (`{t, actor, ability, targets, dmg, crit}` plus position updates).
 - `src/render/`: Three.js scenes that replay the sim's event log.
 - `src/ui/`: town and menu screens.
 - `data/*.json`: every balanceable number (races, classes, abilities, monsters, items, biomes, events). Nothing balance-related is hardcoded.
@@ -20,9 +20,11 @@
 - Seeded RNG everywhere, so any run can be replayed from its seed.
 
 ## Art and audio
-- Style: cartoon low-poly, flat-shaded, one shared palette texture, chunky big-headed proportions. The reference is the Overaction skeleton in `~/Projects/game-asset-cache`.
-- Source assets from `~/Projects/game-asset-cache`. **Read its `AGENTS.md` and the pack's guide first.** Copy only the files you use into `public/assets/`, never edit the cache originals, keep each pack's license file with the copy, and add a line to `CREDITS.md`.
-- Known gotchas: the Overaction skeleton FBX wants lowercase `textures/` (fix it in the copy) and has no death clip. Kenney dungeon GLBs reference an external `Textures/colormap.png`.
+- Style: everything is voxel at 32px-art fidelity (16px HAS sprites upscaled 2× with Scale2x, then voxelized; a unit is 32 voxels tall), seen through an isometric orthographic camera. Flat shading, vertex colours, half-resolution render upscaled with nearest filtering.
+- Source art is the Heroic Asset Series in `~/Projects/game-asset-cache`, converted to voxels by `npm run voxelize`. **Read the cache's `AGENTS.md` and the pack's guide first.** Never edit the cache originals.
+- **The Heroic Asset Series is paid art. Never commit it, or voxel models made from it, to this public repo.** It lives in a private assets repo, cloned locally into gitignored `assets-private/` and pulled into the Pages build with a deploy key. Credit Aleksandr Makarov. The game must still run without it, using placeholder cubes.
+- UI is diegetic by default: show state in the world (posture, wounds, effects, lighting), not with health bars or floating numbers. Any 2D UI that's needed uses the in-world pixel style. Build this in from the start.
+- CC0 assets (Kenney sounds and particles) can be copied into `public/assets/`. Keep each pack's license file with the copy and add a line to `CREDITS.md`.
 
 ## Arcade listing
 - The arcade card reads this repo's description, GitHub Pages URL and the page's `og:image`. Once something is playable:
