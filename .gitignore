@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.DS_Store
+
+# Plans stay local (repo is public)
+plans/
