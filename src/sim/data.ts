@@ -80,6 +80,8 @@ export interface EncounterPool {
   pool: Record<string, number>;
   elites?: Record<string, number>;
   captains?: Record<string, number>;
+  /** Per-tier, per-room difficulty (tuner knob), on top of the global monster scale. */
+  scale?: { hp: number; power: number };
 }
 
 export interface TierDef {
@@ -93,7 +95,7 @@ export interface TierDef {
   normal: EncounterPool;
   elite: EncounterPool;
   horde: EncounterPool;
-  boss: { boss: string; adds: Record<string, number> };
+  boss: { boss: string; adds: Record<string, number>; scale?: { hp: number; power: number } };
   rooms: Record<string, number>;
   nodes: [number, number];
   named: string[];

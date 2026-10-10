@@ -302,7 +302,8 @@ export class Fight {
   private addMonster(enemyId: string, level: number, rank: string | undefined, team: Team, summoner: Unit | undefined, rng: Rng) {
     const e = ENEMIES[enemyId];
     const ar = ARCHETYPES[e.archetype];
-    const { stats, tags, typeMods } = monsterStats(enemyId, level, rank);
+    const room = team === 1 ? TIERS[this.setup.tier]?.[this.setup.roomType]?.scale : undefined;
+    const { stats, tags, typeMods } = monsterStats(enemyId, level, rank, room);
     let x: number, y: number;
     if (summoner) {
       const a = rng.next() * Math.PI * 2;

@@ -3,7 +3,8 @@
 // Trials change data in memory only. It writes a report and a proposal; --apply patches the data files in place.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { ABILITIES, ARCHETYPES, CLASSES, DELVE, ENEMIES, LEADERSHIP, MONSTER_SCALE, PROGRESSION, RACES, RANKS, SPECIES, TIERS } from '../src/sim/data';
+import { measureBaselines } from './baselines';
+import { ABILITIES, ARCHETYPES, BASELINES, CLASSES, DELVE, ENEMIES, LEADERSHIP, MONSTER_SCALE, PROGRESSION, RACES, RANKS, SPECIES, TIERS } from '../src/sim/data';
 import { fightOnce, runStats, TARGETS } from './metrics';
 import { PRESETS } from '../src/sim/presets';
 import type { RoomType } from '../src/sim/types';
@@ -60,14 +61,16 @@ for (const t of TIER_LIST) {
   BANDS.push({ key: `${t} boss win`, band: TARGETS.bossWin as [number, number], scale: 0.08, weight: 1 });
   BANDS.push({ key: `${t} seasoned deaths/hero`, band: TARGETS.deathsPerHeroPerRun as [number, number], scale: 0.03, weight: 1.5 });
   BANDS.push({ key: `${t} seasoned wipe`, band: [0, TARGETS.wipePerRun], scale: 0.04, weight: 1 });
+  // a new player's novice Leader should lose some runs, not most of them
+  BANDS.push({ key: `${t} novice wipe`, band: [0, 0.3], scale: 0.05, weight: 1 });
   // rank must pay: Master banks at least 10% more than Seasoned, and novices die at least twice as often as Masters
   BANDS.push({ key: `${t} master/seasoned banked`, band: [1.1, 99], scale: 0.1, weight: 1 });
   BANDS.push({ key: `${t} novice/master deaths`, band: [2, 99], scale: 0.5, weight: 0.5 });
 }
 
-function measure(seeds: number, from = 0): Metrics {
+function measure(seeds: number, from = 0, tiers = TIER_LIST): Metrics {
   const m: Metrics = {};
-  for (const t of TIER_LIST) {
+  for (const t of tiers) {
     for (const room of ROOMS) {
       let win = 0, secs = 0;
       for (let s = from; s < from + seeds; s++) { const r = fightOnce(PRESETS.starter, t, room, s); if (r.result === 'victory') win++; secs += r.duration; }
@@ -78,6 +81,7 @@ function measure(seeds: number, from = 0): Metrics {
       [rank, runStats(t, `human-${rank}`, 'trust', seeds, { raceId: 'human', leadership: [2, 5, 10][i] }, from)]));
     m[`${t} seasoned deaths/hero`] = ladder.seasoned.deathsPerHero;
     m[`${t} seasoned wipe`] = ladder.seasoned.wipe;
+    m[`${t} novice wipe`] = ladder.novice.wipe;
     m[`${t} master/seasoned banked`] = ladder.master.banked / Math.max(1, ladder.seasoned.banked);
     m[`${t} novice/master deaths`] = ladder.novice.deathsPerHero / Math.max(0.005, ladder.master.deathsPerHero);
   }
@@ -98,8 +102,17 @@ const start = new Date();
 const initial = Object.fromEntries(PARAMS.map((p) => [p.path, get(p.path)]));
 const steps = Object.fromEntries(PARAMS.map((p) => [p.path, p.step]));
 let evals = 0;
-const evaluate = () => { evals++; return loss(measure(SEEDS)); };
-let best = evaluate();
+// a knob under tiers.<T> only changes tier T, so only that tier is re-measured
+const tiersOf = (path: string) => { const m = /^tiers\.(\w+)\./.exec(path); return m ? [m[1]] : TIER_LIST; };
+// Leaders plan with the baseline table, so keep it in step with the data being tried
+const refreshBaselines = (tiers: string[]) => Object.assign(BASELINES, measureBaselines(tiers));
+const initialBaselines = structuredClone(BASELINES);
+refreshBaselines(TIER_LIST);
+let current = measure(SEEDS);
+evals++;
+let trial: Metrics = current;
+const evaluate = (path: string) => { evals++; trial = { ...current, ...measure(SEEDS, 0, tiersOf(path)) }; return loss(trial); };
+let best = loss(current);
 const log: string[] = [`start loss ${best.toFixed(2)}`];
 console.log(`tune: ${PARAMS.length} knobs, ${SEEDS} seeds, budget ${MAX_EVALS} evals; start loss ${best.toFixed(2)}`);
 
@@ -110,30 +123,39 @@ while (improved && evals < MAX_EVALS) {
     if (evals >= MAX_EVALS) break;
     const cur = get(p.path);
     let moved = false;
-    for (const dir of [1, -1]) {
-      const v = round(Math.min(p.max, Math.max(p.min, cur + dir * steps[p.path])), p.step);
+    // on a plateau (e.g. a room won 100% either way) a small step shows no slope, so probe further out
+    let flat = true;
+    for (const [dir, mult] of [[1, 1], [-1, 1], [1, 2], [-1, 2], [1, 4]] as const) {
+      if (mult > 1 && !flat) break;
+      const v = round(Math.min(p.max, Math.max(p.min, cur + dir * mult * steps[p.path])), p.step);
       if (v === cur || evals >= MAX_EVALS) continue;
       set(p.path, v);
-      const l = evaluate();
+      const l = evaluate(p.path);
+      if (Math.abs(l - best) > Math.max(0.05, best * 0.01)) flat = false;
       if (l < best - Math.max(0.05, best * 0.01)) {
         log.push(`${p.path}: ${cur} → ${v}, loss ${best.toFixed(2)} → ${l.toFixed(2)}`);
         console.log(`  ${p.path} ${cur} → ${v}  loss ${l.toFixed(2)}`);
-        best = l; moved = improved = true;
+        refreshBaselines(tiersOf(p.path));
+        current = { ...current, ...measure(SEEDS, 0, tiersOf(p.path)) };
+        best = loss(current); moved = improved = true;
         break;
       }
       set(p.path, cur);
     }
-    // no luck either way: search finer next time round
-    if (!moved) steps[p.path] = Math.max(p.step / 4, steps[p.path] / 2);
+    // no luck either way: search finer next time round (keep going while any knob can still refine)
+    if (!moved && steps[p.path] > p.step / 4) { steps[p.path] = Math.max(p.step / 4, steps[p.path] / 2); improved = true; }
   }
 }
 
 // ---- validate on held-out seeds and report ----
 const final = Object.fromEntries(PARAMS.map((p) => [p.path, get(p.path)]));
+const finalBaselines = structuredClone(BASELINES);
 const after = measure(SEEDS * 2, VALIDATE_FROM);
 for (const p of PARAMS) set(p.path, initial[p.path]);
+Object.assign(BASELINES, initialBaselines);
 const before = measure(SEEDS * 2, VALIDATE_FROM);
 for (const p of PARAMS) set(p.path, final[p.path]);
+Object.assign(BASELINES, finalBaselines);
 
 const changes = PARAMS.filter((p) => final[p.path] !== initial[p.path]);
 const fmt = (k: string, v: number) => (k.includes('win') || k.includes('wipe') ? `${(v * 100).toFixed(0)}%` : v.toFixed(k.includes('deaths/hero') ? 3 : 2));
@@ -147,9 +169,9 @@ const lines = [
   '| Metric | Target | Before | After |', '|---|---|---|---|',
   ...BANDS.map((b) => `| ${b.key} | ${fmt(b.key, b.band[0])}–${b.band[1] >= 99 ? '∞' : fmt(b.key, b.band[1])} | ${fmt(b.key, before[b.key])} | ${fmt(b.key, after[b.key])} |`), '',
   '## Search log', '', ...log.map((l) => `- ${l}`), '',
-  changes.some((p) => p.path.startsWith('monsters')) ? 'Monster numbers changed: rerun `npm run baselines` so Leaders read the new risks, then `npm run golden`.' : '',
+  changes.length ? 'With --apply the baseline table is rewritten too; then run `npm run golden`.' : '',
 ];
-const stamp = start.toISOString().slice(0, 16).replace(/[T:]/g, '-');
+const stamp = start.toISOString().slice(0, 19).replace(/[T:]/g, '-');
 const dir = join('reports', `${stamp}-tune`);
 mkdirSync(dir, { recursive: true });
 writeFileSync(join(dir, 'report.md'), lines.join('\n'));
@@ -175,5 +197,6 @@ function patchFile(path: string, value: number) {
 }
 if (APPLY && changes.length && loss(after) < loss(before)) {
   for (const p of changes) patchFile(p.path, final[p.path]);
+  writeFileSync('data/leader-baselines.json', JSON.stringify({ _doc: 'Generated by npm run baselines (tools/baselines.ts). Win rate, HP cost and per-hero death rate by tier, room and entering party HP.', table: finalBaselines }, null, 1) + '\n');
   console.log(`applied ${changes.length} change(s) to data/; review with git diff`);
 } else if (APPLY) console.log('not applied: no change, or the held-out loss did not improve');

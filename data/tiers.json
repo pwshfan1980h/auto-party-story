@@ -19,6 +19,7 @@
       "hazards": 0
     },
     "normal": {
+      "scale": { "hp": 1.6, "power": 1 },
       "count": [
         3,
         5
@@ -35,6 +36,7 @@
       }
     },
     "elite": {
+      "scale": { "hp": 0.9, "power": 1 },
       "count": [
         2,
         3
@@ -52,6 +54,7 @@
       }
     },
     "horde": {
+      "scale": { "hp": 3, "power": 1 },
       "count": 50,
       "pool": {
         "rat_swarmling": 3,
@@ -63,6 +66,7 @@
       }
     },
     "boss": {
+      "scale": { "hp": 1.1, "power": 1 },
       "boss": "rat_king",
       "adds": {
         "sewer_rat": 3
@@ -108,6 +112,7 @@
       "hazards": 1
     },
     "normal": {
+      "scale": { "hp": 1, "power": 1 },
       "count": [
         4,
         6
@@ -124,6 +129,7 @@
       }
     },
     "elite": {
+      "scale": { "hp": 1.1, "power": 1 },
       "count": [
         4,
         5
@@ -142,6 +148,7 @@
       }
     },
     "horde": {
+      "scale": { "hp": 1, "power": 1 },
       "count": 24,
       "pool": {
         "bone_servant": 4,
@@ -154,6 +161,7 @@
       }
     },
     "boss": {
+      "scale": { "hp": 1, "power": 1 },
       "boss": "bone_warden",
       "adds": {
         "skeleton_warrior": 2,
@@ -200,6 +208,7 @@
       "hazards": 2
     },
     "normal": {
+      "scale": { "hp": 1, "power": 1 },
       "count": [
         5,
         7
@@ -215,6 +224,7 @@
       }
     },
     "elite": {
+      "scale": { "hp": 1.4, "power": 1 },
       "count": [
         6,
         8
@@ -232,6 +242,7 @@
       }
     },
     "horde": {
+      "scale": { "hp": 1.1, "power": 1 },
       "count": 90,
       "pool": {
         "spiderling": 3,
@@ -245,6 +256,7 @@
       }
     },
     "boss": {
+      "scale": { "hp": 1.4, "power": 1 },
       "boss": "broodmother",
       "adds": {
         "cave_spider": 2,

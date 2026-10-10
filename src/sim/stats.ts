@@ -61,7 +61,7 @@ export function heroStats(classId: string, raceId: string, level: number, attrs:
   return s;
 }
 
-export function monsterStats(enemyId: string, level: number, rankOverride?: string): { stats: Stats; tags: string[]; typeMods: Record<string, number> } {
+export function monsterStats(enemyId: string, level: number, rankOverride?: string, room: { hp: number; power: number } = { hp: 1, power: 1 }): { stats: Stats; tags: string[]; typeMods: Record<string, number> } {
   const e = ENEMIES[enemyId];
   const sp = SPECIES[e.species];
   const ar = ARCHETYPES[e.archetype];
@@ -69,9 +69,9 @@ export function monsterStats(enemyId: string, level: number, rankOverride?: stri
   const curve = Math.pow(1.07, level - 1);
   const s = baseStats();
   const em = e.mult ?? {};
-  s.maxHp = Math.round((sp.stats.maxHp ?? 50) * (ar.mult.maxHp ?? 1) * rank.hp * curve * MONSTER_SCALE.hp * (em.hp ?? 1));
-  s.power = (sp.stats.power ?? 5) * (ar.mult.power ?? 1) * rank.power * curve * MONSTER_SCALE.power * (em.power ?? 1);
-  s.spell = (sp.stats.spell ?? 5) * (ar.mult.spell ?? 1) * rank.power * curve * MONSTER_SCALE.power * (em.power ?? 1);
+  s.maxHp = Math.round((sp.stats.maxHp ?? 50) * (ar.mult.maxHp ?? 1) * rank.hp * curve * MONSTER_SCALE.hp * (em.hp ?? 1) * room.hp);
+  s.power = (sp.stats.power ?? 5) * (ar.mult.power ?? 1) * rank.power * curve * MONSTER_SCALE.power * (em.power ?? 1) * room.power;
+  s.spell = (sp.stats.spell ?? 5) * (ar.mult.spell ?? 1) * rank.power * curve * MONSTER_SCALE.power * (em.power ?? 1) * room.power;
   s.armor = (sp.stats.armor ?? 0) + (ar.add?.armor ?? 0);
   s.move = (sp.stats.move ?? 1.4) * (ar.mult.move ?? 1);
   s.evasion = sp.stats.evasion ?? 0.03;
