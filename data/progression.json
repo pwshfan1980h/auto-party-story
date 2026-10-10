@@ -1,0 +1,10 @@
+{
+  "_doc": "XP and levelling (spec 08). Tuned against the campaign suite.",
+  "killXpPerLevel": 30,
+  "roomClearBonus": 0.2,
+  "xpCurve": { "base": 80, "exponent": 1.75 },
+  "overLevelGap": 5,
+  "overLevelMult": 0.5,
+  "underLevelMult": 1.25,
+  "maxLevel": 30
+}

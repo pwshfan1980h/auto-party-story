@@ -51,6 +51,8 @@ export interface Decision {
   options: { node: number; type: NodeType | '?'; score: number; pref: number }[];
   disciplineBroken: boolean;
   namedSpotted: boolean;
+  /** Judged afterwards: a push followed by a room with no losses, or a retreat when it was needed (spec 07). */
+  goodCall?: boolean;
 }
 
 const VALUE: Record<string, number> = { fight: 0.5, elite: 0.75, horde: 0.7, treasure: 0.85, shrine: 0.45, campfire: 0.25, event: 0.45, stairs: 0.6, boss: 0.9, '?': 0.5, start: 0 };

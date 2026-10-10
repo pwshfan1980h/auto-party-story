@@ -310,5 +310,159 @@
       "artillery"
     ],
     "model": "hero:necromancer"
+  },
+  "knight": {
+    "name": "Knight",
+    "tier": 2,
+    "base": "fighter",
+    "roles": {
+      "tank": 3,
+      "control": 2,
+      "support": 1,
+      "bruiser": 1
+    },
+    "stats": {
+      "maxHp": 134,
+      "power": 13,
+      "spell": 2,
+      "armor": 16,
+      "move": 1.5,
+      "crit": 0.06
+    },
+    "growth": {
+      "maxHp": 10,
+      "power": 1.0,
+      "spell": 0.1,
+      "armor": 0.9
+    },
+    "autoBuild": {
+      "might": 0.45,
+      "vigor": 0.45,
+      "agility": 0.1
+    },
+    "basic": "knight_strike",
+    "skills": [
+      "knight_shieldbash"
+    ],
+    "ult": "knight_bulwark",
+    "ruleTemplates": [
+      "tank"
+    ],
+    "model": "hero:knight"
+  },
+  "berserker": {
+    "name": "Berserker",
+    "tier": 2,
+    "base": "fighter",
+    "roles": {
+      "bruiser": 3,
+      "area": 2,
+      "tank": 1,
+      "striker": 1
+    },
+    "stats": {
+      "maxHp": 112,
+      "power": 16,
+      "spell": 2,
+      "armor": 12,
+      "move": 1.6,
+      "crit": 0.07
+    },
+    "growth": {
+      "maxHp": 8,
+      "power": 1.15,
+      "spell": 0.1,
+      "armor": 0.6
+    },
+    "autoBuild": {
+      "might": 0.45,
+      "vigor": 0.45,
+      "agility": 0.1
+    },
+    "basic": "berserker_hack",
+    "skills": [
+      "berserker_frenzy"
+    ],
+    "ult": "berserker_whirlwind",
+    "ruleTemplates": [
+      "bruiser"
+    ],
+    "model": "hero:berserker"
+  },
+  "sniper": {
+    "name": "Sniper",
+    "tier": 2,
+    "base": "ranger",
+    "roles": {
+      "striker": 3,
+      "artillery": 3,
+      "utility": 1
+    },
+    "stats": {
+      "maxHp": 76,
+      "power": 15,
+      "spell": 3,
+      "armor": 4,
+      "move": 1.6,
+      "crit": 0.11
+    },
+    "growth": {
+      "maxHp": 6,
+      "power": 1.2,
+      "spell": 0.2,
+      "armor": 0.4
+    },
+    "autoBuild": {
+      "agility": 0.5,
+      "might": 0.3,
+      "vigor": 0.2
+    },
+    "basic": "sniper_shot",
+    "skills": [
+      "sniper_aimed"
+    ],
+    "ult": "sniper_headshot",
+    "ruleTemplates": [
+      "artillery"
+    ],
+    "model": "hero:sniper"
+  },
+  "assassin": {
+    "name": "Assassin",
+    "tier": 2,
+    "base": "rogue",
+    "roles": {
+      "striker": 3,
+      "control": 1,
+      "utility": 1
+    },
+    "stats": {
+      "maxHp": 80,
+      "power": 15,
+      "spell": 2,
+      "armor": 5,
+      "move": 2.1,
+      "crit": 0.17
+    },
+    "growth": {
+      "maxHp": 6,
+      "power": 1.2,
+      "spell": 0.1,
+      "armor": 0.4
+    },
+    "autoBuild": {
+      "agility": 0.5,
+      "might": 0.35,
+      "vigor": 0.15
+    },
+    "basic": "assassin_stab",
+    "skills": [
+      "assassin_backstab"
+    ],
+    "ult": "assassin_execute",
+    "ruleTemplates": [
+      "striker"
+    ],
+    "model": "hero:assassin"
   }
 }

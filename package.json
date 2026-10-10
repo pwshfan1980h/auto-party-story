@@ -8,7 +8,8 @@
     "build": "tsc && vite build",
     "check": "tsc",
     "test": "vitest run",
-    "sim": "tsx tools/sim.ts"
+    "sim": "tsx tools/sim.ts",
+    "golden": "tsx tools/golden.ts"
   },
   "devDependencies": {
     "@types/node": "^22.20.5",

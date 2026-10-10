@@ -7,7 +7,8 @@ import { buildEncounter } from '../src/sim/encounter';
 import { runFight, type FightResult, type MonsterSpawn } from '../src/sim/fight';
 import { ALL_CLASSES, heroFor, LEADERS, party, PRESETS } from '../src/sim/presets';
 import { hash32, stream } from '../src/sim/rng';
-import { runRun, type RunResult } from '../src/sim/run';
+import { runRun, type RunPolicy, type RunResult } from '../src/sim/run';
+import { runCampaign } from '../src/sim/campaign';
 import type { RoomType } from '../src/sim/types';
 
 const args = process.argv.slice(2);
@@ -203,6 +204,90 @@ function runs() {
   }
 }
 
+function runStats(tier: string, lname: string, policy: RunPolicy, S: number) {
+  const l = LEADERS[lname];
+  let died = 0, heroes = 0, banked = 0, wipes = 0, good = 0, calls = 0, warns = 0, turnBack = 0, thisWay = 0, embers = 0, fellBack = 0, raresK = 0, raresE = 0;
+  for (let s = 0; s < S; s++) {
+    const p = party(PRESETS.starter, tier);
+    p[0] = { ...p[0], raceId: l.raceId, leadership: l.leadership };
+    const r = runRun({ seed: s, tier, party: p, leaderId: p[0].id, policy });
+    died += r.died.length; heroes += p.length; banked += r.banked; if (r.outcome === 'wipe') wipes++;
+    for (const d of r.decisions) if (d.goodCall !== undefined) { calls++; if (d.goodCall) good++; }
+    warns += r.warnings; if (r.turnBackUsed) turnBack++; thisWay += r.thisWayUsed; embers += r.embersSpent; fellBack += r.fellBack; raresK += r.rares.killed; raresE += r.rares.escaped;
+  }
+  return { deathsPerHero: died / heroes, banked: banked / S, bankedPerDeath: banked / Math.max(1, died), wipe: wipes / S, goodCalls: good / Math.max(1, calls), warnings: warns / S, turnBack: turnBack / S, thisWay: thisWay / S, embers: embers / S, fellBack: fellBack / S, rares: `${raresK}/${raresE}` };
+}
+
+function leaders() {
+  md('# Leaders (policy: trust)');
+  const rows: (string | number)[][] = [];
+  const data: Record<string, unknown> = {};
+  for (const tier of TIER_LIST) for (const lname of Object.keys(LEADERS)) {
+    const r = runStats(tier, lname, 'trust', SEEDS);
+    data[`${tier}/${lname}`] = r;
+    rows.push([tier, lname, pct(r.wipe), r.deathsPerHero.toFixed(3), r.banked.toFixed(0), r.bankedPerDeath.toFixed(0), pct(r.goodCalls), r.fellBack.toFixed(2)]);
+  }
+  table(['Tier', 'Leader', 'Wiped', 'Deaths/hero', 'Banked', 'Banked per death', 'Good calls', 'Fall backs/run'], rows);
+  json.leaders = data;
+  for (const tier of TIER_LIST) {
+    const n = data[`${tier}/novice-orc`] as { goodCalls: number; bankedPerDeath: number }, m = data[`${tier}/master-human`] as { goodCalls: number; bankedPerDeath: number };
+    if (m.goodCalls < n.goodCalls + 0.1) flags.push(`Tier ${tier}: master good calls ${pct(m.goodCalls)} vs novice ${pct(n.goodCalls)} (target: clearly higher)`);
+    if (m.bankedPerDeath < n.bankedPerDeath * 1.3) flags.push(`Tier ${tier}: master banks ${m.bankedPerDeath.toFixed(0)} per death vs novice ${n.bankedPerDeath.toFixed(0)}`);
+  }
+}
+
+function policies() {
+  md('# Intervention policies (seasoned dwarf Leader, matched seeds)');
+  const rows: (string | number)[][] = [];
+  const data: Record<string, unknown> = {};
+  for (const tier of TIER_LIST) for (const pol of ['trust', 'cautious', 'orders'] as RunPolicy[]) {
+    const r = runStats(tier, 'seasoned-dwarf', pol, SEEDS);
+    data[`${tier}/${pol}`] = r;
+    rows.push([tier, pol, pct(r.wipe), r.deathsPerHero.toFixed(3), r.banked.toFixed(0), r.warnings.toFixed(2), pct(r.turnBack), r.thisWay.toFixed(2), r.embers.toFixed(1), r.rares]);
+  }
+  table(['Tier', 'Policy', 'Wiped', 'Deaths/hero', 'Banked', 'Warnings/run', 'Turned back', 'This way/run', 'Embers spent/run', 'Rares killed/escaped'], rows);
+  json.policies = data;
+  md('### Player Orders in single fights (none / good / spam)');
+  const orows: (string | number)[][] = [];
+  for (const tier of TIER_LIST) for (const room of ['elite', 'boss'] as RoomType[]) {
+    const cell: (string | number)[] = [tier, room];
+    const res: Record<string, number> = {};
+    for (const pol of ['none', 'good', 'spam'] as const) {
+      let w = 0;
+      const N = Math.max(40, SEEDS);
+      for (let s = 0; s < N; s++) {
+        const r = runFight({ seed: s, key: ['o', tier, room], tier, roomType: room, heroes: party(PRESETS.starter, tier), monsters: buildEncounter(tier, room, TIERS[tier].floors[0] + 1, stream(s, 'enc-o', tier, room)), embers: 3, orderPolicy: pol, leader: { heroId: 'fighter0', rank: 'seasoned', noise: 0.15, temperament: 'stubborn' } });
+        if (r.result === 'victory') w++;
+      }
+      res[pol] = w / N;
+      cell.push(pct(w / N));
+    }
+    orows.push(cell);
+    const lift = res.good - res.none;
+    if (lift < 0.08 && res.none < 0.9) flags.push(`Tier ${tier} ${room}: good orders lift ${(lift * 100).toFixed(0)} pts (target +8 to +15)`);
+    if (res.spam > res.good) flags.push(`Tier ${tier} ${room}: spam orders (${pct(res.spam)}) beat good orders (${pct(res.good)})`);
+  }
+  table(['Tier', 'Room', 'No orders', 'Good bot', 'Spam bot'], orows);
+}
+
+function campaign() {
+  md('# Simulated campaigns (balanced bot, trust policy)');
+  const N = Math.max(6, Math.floor(SEEDS / 10));
+  const rows: (string | number)[][] = [];
+  const all = [];
+  for (let s = 1; s <= N; s++) {
+    const c = runCampaign({ seed: s, maxRuns: 150 });
+    all.push(c);
+    rows.push([s, c.runs, c.hours, c.tierUnlocked, c.milestones.II ?? '–', c.milestones.III ?? '–', c.milestones.clearedIII ?? '–', c.deathsPerHeroRun.toFixed(3), c.heroesLost, c.longestStall, c.curve.at(-1)?.[1] ?? 0]);
+  }
+  table(['Seed', 'Runs', 'Hours', 'Tier', 'h to II', 'h to III', 'h to clear III', 'Deaths/hero/run', 'Heroes lost', 'Longest stall', 'Avg level'], rows);
+  const d = all.reduce((s, c) => s + c.deathsPerHeroRun, 0) / all.length;
+  if (!inBand(d, TARGETS.deathsPerHeroPerRun)) flags.push(`campaign deaths per hero per run ${d.toFixed(3)} outside 0.05–0.10`);
+  const stall = Math.max(...all.map((c) => c.longestStall));
+  if (stall > 6) flags.push(`campaign longest stall ${stall} runs (target ≤ 6)`);
+  json.campaign = all.map(({ curve, ...rest }) => ({ ...rest, curveTail: curve.slice(-5) }));
+}
+
 function perf() {
   md('# Performance');
   const t0 = performance.now(); let n = 0;
@@ -225,7 +310,10 @@ else if (suite === 'determinism') ok = determinism();
 else if (suite === 'fights') fights();
 else if (suite === 'runs') runs();
 else if (suite === 'perf') perf();
-else if (suite === 'all') { ok = smoke(); fights(); runs(); perf(); }
+else if (suite === 'leaders') leaders();
+else if (suite === 'policies') policies();
+else if (suite === 'campaign') campaign();
+else if (suite === 'all') { ok = smoke(); fights(); runs(); leaders(); policies(); campaign(); perf(); }
 else { console.error(`unknown suite ${suite}`); process.exit(2); }
 
 md('## Flags (outside targets)');

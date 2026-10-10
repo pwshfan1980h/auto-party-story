@@ -835,5 +835,271 @@
         "dur": 3
       }
     ]
+  },
+  "knight_strike": {
+    "name": "Strike",
+    "kind": "basic",
+    "range": 1.0,
+    "windup": 0.3,
+    "cooldown": 1.1,
+    "delivery": "melee",
+    "affects": "target",
+    "dodgeable": true,
+    "effects": [
+      {
+        "type": "damage",
+        "dmgType": "slash",
+        "base": 2,
+        "scale": 1.0
+      }
+    ]
+  },
+  "knight_shieldbash": {
+    "name": "Shield Bash",
+    "kind": "skill",
+    "range": 1.1,
+    "windup": 0.35,
+    "cooldown": 7,
+    "delivery": "melee",
+    "affects": "target",
+    "dodgeable": true,
+    "effects": [
+      {
+        "type": "damage",
+        "dmgType": "blunt",
+        "base": 2,
+        "scale": 1.0
+      },
+      {
+        "type": "status",
+        "status": "stun",
+        "dur": 1.0
+      }
+    ],
+    "interrupts": true
+  },
+  "knight_bulwark": {
+    "name": "Bulwark",
+    "kind": "ult",
+    "range": 0,
+    "windup": 0.5,
+    "delivery": "self",
+    "affects": "allies",
+    "friendly": true,
+    "area": {
+      "shape": "circle",
+      "r": 3,
+      "at": "self"
+    },
+    "cine": 3,
+    "effects": [
+      {
+        "type": "shield",
+        "base": 30,
+        "scale": 1.5,
+        "dur": 5
+      },
+      {
+        "type": "status",
+        "status": "ward",
+        "dur": 5
+      }
+    ]
+  },
+  "berserker_hack": {
+    "name": "Hack",
+    "kind": "basic",
+    "range": 1.0,
+    "windup": 0.25,
+    "cooldown": 0.9,
+    "delivery": "melee",
+    "affects": "target",
+    "dodgeable": true,
+    "effects": [
+      {
+        "type": "damage",
+        "dmgType": "slash",
+        "base": 2,
+        "scale": 1.1
+      }
+    ]
+  },
+  "berserker_frenzy": {
+    "name": "Frenzy",
+    "kind": "skill",
+    "range": 0,
+    "windup": 0.2,
+    "cooldown": 10,
+    "delivery": "self",
+    "affects": "self",
+    "friendly": true,
+    "effects": [
+      {
+        "type": "status",
+        "status": "haste",
+        "dur": 5
+      },
+      {
+        "type": "status",
+        "status": "might",
+        "dur": 5
+      }
+    ]
+  },
+  "berserker_whirlwind": {
+    "name": "Whirlwind",
+    "kind": "ult",
+    "range": 1.6,
+    "windup": 0.4,
+    "delivery": "self",
+    "affects": "enemies",
+    "area": {
+      "shape": "circle",
+      "r": 2.2,
+      "at": "self"
+    },
+    "cine": 3,
+    "effects": [
+      {
+        "type": "damage",
+        "dmgType": "slash",
+        "base": 5,
+        "scale": 2.0
+      },
+      {
+        "type": "knockback",
+        "dist": 0.6
+      }
+    ]
+  },
+  "sniper_shot": {
+    "name": "Shot",
+    "kind": "basic",
+    "range": 6.5,
+    "windup": 0.45,
+    "cooldown": 1.5,
+    "delivery": "projectile",
+    "projectile": {
+      "speed": 14
+    },
+    "affects": "target",
+    "dodgeable": true,
+    "effects": [
+      {
+        "type": "damage",
+        "dmgType": "pierce",
+        "base": 2,
+        "scale": 1.1
+      }
+    ]
+  },
+  "sniper_aimed": {
+    "name": "Aimed Shot",
+    "kind": "skill",
+    "range": 7,
+    "windup": 0.8,
+    "cooldown": 6,
+    "delivery": "projectile",
+    "projectile": {
+      "speed": 16
+    },
+    "affects": "target",
+    "dodgeable": true,
+    "effects": [
+      {
+        "type": "damage",
+        "dmgType": "pierce",
+        "base": 4,
+        "scale": 2.8
+      }
+    ],
+    "interrupts": true
+  },
+  "sniper_headshot": {
+    "name": "Headshot",
+    "kind": "ult",
+    "range": 8,
+    "windup": 0.6,
+    "delivery": "projectile",
+    "projectile": {
+      "speed": 18
+    },
+    "affects": "target",
+    "cine": 3,
+    "effects": [
+      {
+        "type": "damage",
+        "dmgType": "pierce",
+        "base": 8,
+        "scale": 4.0
+      }
+    ]
+  },
+  "assassin_stab": {
+    "name": "Stab",
+    "kind": "basic",
+    "range": 0.9,
+    "windup": 0.18,
+    "cooldown": 0.75,
+    "delivery": "melee",
+    "affects": "target",
+    "dodgeable": true,
+    "behindMult": 1.6,
+    "effects": [
+      {
+        "type": "damage",
+        "dmgType": "pierce",
+        "base": 1,
+        "scale": 1.0
+      }
+    ]
+  },
+  "assassin_backstab": {
+    "name": "Backstab",
+    "kind": "skill",
+    "range": 0.9,
+    "windup": 0.25,
+    "cooldown": 5,
+    "delivery": "melee",
+    "affects": "target",
+    "dodgeable": true,
+    "behindMult": 2.2,
+    "effects": [
+      {
+        "type": "damage",
+        "dmgType": "pierce",
+        "base": 2,
+        "scale": 1.9
+      }
+    ],
+    "interrupts": true
+  },
+  "assassin_execute": {
+    "name": "Execute",
+    "kind": "ult",
+    "range": 6,
+    "windup": 0.2,
+    "delivery": "melee",
+    "affects": "target",
+    "cine": 3,
+    "effects": [
+      {
+        "type": "dash",
+        "to": "behind"
+      },
+      {
+        "type": "damage",
+        "dmgType": "pierce",
+        "base": 6,
+        "scale": 3.5
+      },
+      {
+        "type": "damage",
+        "dmgType": "pierce",
+        "base": 0,
+        "scale": 2.0,
+        "ifTargetHpBelow": 0.25
+      }
+    ]
   }
 }

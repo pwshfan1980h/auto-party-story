@@ -520,6 +520,10 @@ export const CLASS_LOOK: Record<string, { outfit: Outfit; gear: Gear; style: Mod
   bard: { outfit: 'bard', gear: 'lute', style: 'caster' },
   alchemist: { outfit: 'alchemist', gear: 'flask', style: 'ranged' },
   necromancer: { outfit: 'necromancer', gear: 'skullStaff', style: 'caster' },
+  knight: { outfit: 'fighter', gear: 'swordShield', style: 'melee' },
+  berserker: { outfit: 'fighter', gear: 'bigClub', style: 'melee' },
+  sniper: { outfit: 'ranger', gear: 'bow', style: 'ranged' },
+  assassin: { outfit: 'rogue', gear: 'daggers', style: 'melee' },
 };
 
 /** A hero model: race body + class outfit, varied by the hero's look. */

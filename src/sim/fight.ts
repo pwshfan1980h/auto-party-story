@@ -457,8 +457,8 @@ export class Fight {
       const t = this.get(u.order.targetId);
       const reviveFirst = u.order.kind === 'mend' && t && t.downedLeft <= 0 && this.units.some((o) => o.team === u.team && o.alive && o.downedLeft > 0);
       if (t && t.alive && !reviveFirst) {
-        const keepRange = (u.roles.heal ?? 0) >= 2 || (u.roles.artillery ?? 0) >= 2 || (u.roles.area ?? 0) >= 2;
-        u.plan = { ability: u.order.ability, targetId: t.id, intent: keepRange ? 'kite' : 'approach', arg: keepRange ? 2.5 : 0 };
+        // close to the ability's range and use it; approach stops as soon as the target is in reach
+        u.plan = { ability: u.order.ability, targetId: t.id, intent: 'approach', arg: 0 };
         return;
       }
     }
@@ -1052,13 +1052,16 @@ export class Fight {
     const party = this.teamCache[0], foes = this.teamCache[1];
     const target = targetId ? this.get(targetId) : undefined;
     const nearestTo = (list: Unit[], p: { x: number; y: number }) => list.reduce<Unit | undefined>((a, b) => (!a || this.dist(p, b) < this.dist(p, a) ? b : a), undefined);
-    const queue = (u: Unit, ability: string, t: Unit, boost = 1) => { u.order = { kind, ability, targetId: t.id, until: this.tick + 3 * TICKS_PER_S, boost, cost: o.cost }; };
+    const queue = (u: Unit, ability: string, t: Unit, boost = 1) => { u.order = { kind, ability, targetId: t.id, until: this.tick + 2 * TICKS_PER_S, boost, cost: o.cost }; };
     switch (kind) {
       case 'mend': {
         if (!target || target.team !== 0 || !target.alive) return 'bad target';
         const healers = party.filter((u) => u.kind === 'hero' && u !== target && (u.roles.heal ?? 0) >= 2);
         const downed = target.downedLeft > 0;
-        const pick = healers.map((h) => ({ h, ab: [...h.skills, h.ult].find((a) => a && ABILITIES[a].friendly && ABILITIES[a].effects.some((e) => e.type === (downed ? 'revive' : 'heal')) && (h.cooldowns[a] ?? 0) <= 0.5) }))
+        // a usable heal or revive: skills off cooldown, or the ultimate only when it's charged
+        const usable = (h: Unit, a: string | undefined) => !!a && ABILITIES[a].friendly && ABILITIES[a].effects.some((e) => e.type === (downed ? 'revive' : 'heal'))
+          && (h.cooldowns[a] ?? 0) <= 0.5 && (ABILITIES[a].kind !== 'ult' || h.energy >= 100);
+        const pick = healers.map((h) => ({ h, ab: [...h.skills, h.ult].find((a) => usable(h, a)) }))
           .filter((x) => x.ab).sort((a, b) => this.dist(a.h, target) - this.dist(b.h, target))[0];
         if (!pick) return 'no healer ready';
         queue(pick.h, pick.ab!, target, 1.5);
@@ -1079,7 +1082,9 @@ export class Fight {
       }
       case 'interrupt': {
         if (!target || target.team !== 1 || !target.windup) return 'nothing to interrupt';
-        const pick = party.map((h) => ({ h, ab: [h.basic, ...h.skills].find((a) => ABILITIES[a].interrupts && (h.cooldowns[a] ?? 0) <= 0.5) })).filter((x) => x.ab).sort((a, b) => this.dist(a.h, target) - this.dist(b.h, target))[0];
+        // only heroes already within reach: an interrupt never pulls the front line across the field
+        const pick = party.map((h) => ({ h, ab: [h.basic, ...h.skills].find((a) => ABILITIES[a].interrupts && (h.cooldowns[a] ?? 0) <= 0.5 && this.gap(h, target) <= ABILITIES[a].range + 1) }))
+          .filter((x) => x.ab).sort((a, b) => this.dist(a.h, target) - this.dist(b.h, target))[0];
         if (!pick) return 'no interrupt ready';
         queue(pick.h, pick.ab!, target);
         break;

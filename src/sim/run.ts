@@ -1,7 +1,7 @@
 // A whole Delve run (spec 07 + DESIGN §7): fogged floor maps, many battles on generated
 // battlefields, the torch, the loot pack, Leader decisions, Hardcore permadeath, and the
 // Delve Ledger.
-import { CLASSES, ENEMIES, LEADERSHIP, RANKS, TIERS } from './data';
+import { CLASSES, ENEMIES, LEADERSHIP, PROGRESSION, RANKS, TIERS } from './data';
 import { FIGHT_TYPES, generateFloor, reveal, type FloorMap, type MapNode, type NodeType } from './delve';
 import { buildEncounter } from './encounter';
 import { Fight, type FightResult, type HeroSnapshot } from './fight';
@@ -219,7 +219,8 @@ export function runRun(setup: RunSetup): RunResult {
     for (const h of active()) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * (medic ? 0.2 : 0.1));
     entry.result = 'won';
     let gainedXp = 0;
-    for (const m of monsters) { const rk = RANKS[m.rank ?? ENEMIES[m.enemyId].rank ?? 'normal']; gainedXp += 6 * m.level * rk.xp; }
+    for (const m of monsters) { const rk = RANKS[m.rank ?? ENEMIES[m.enemyId].rank ?? 'normal']; gainedXp += PROGRESSION.killXpPerLevel * m.level * rk.xp; }
+    gainedXp *= 1 + PROGRESSION.roomClearBonus;
     xp += Math.round(gainedXp);
     entry.gained.push(`${Math.round(gainedXp)} XP`);
     const loot = LOOT[n.type] ?? LOOT.fight!;
@@ -261,6 +262,7 @@ export function runRun(setup: RunSetup): RunResult {
       const call = decide(L, { hp: partyHp(), fallen: fallen(), torch, pack: pack.length / slots, packValue: Math.min(1, packValue), luck: luck(), tier: tierIndex, floor, roomsHome: home }, map, at, leaderRng, setup.doctrine);
       decisions.push(call);
       if (call.namedSpotted) namedSpotted++;
+      if (call.decision === 'retreat') call.goodCall = partyHp() < 0.4 || pack.length / slots >= 0.7 || torch <= home + 2 || fallen() > 0;
       if (call.decision === 'retreat') {
         const entry: LedgerEntry = { floor, node: at, room: node.type, result: 'passed', secs: 0, gained: [], lost: [], call };
         ledger.push(entry);
@@ -307,10 +309,13 @@ export function runRun(setup: RunSetup): RunResult {
       ledger.push(entry);
       if (FIGHT_TYPES.has(next.type) || next.named) {
         const res = fightRoom(next, floor, entry);
+        call.goodCall = res === 'won' && !entry.lost.some((l) => l.includes('fell') || l.includes('Downed'));
         if (res === 'lost') { outcome = 'wipe'; break; }
         if (res === 'fled') { outcome = walkHome(next, floor, roomsHome, entry); break; }
         if (next.type === 'boss') { outcome = 'cleared'; break; }
       } else if (next.type === 'campfire') {
+        // a campfire is a way out: from here on, the way home is measured from this fire
+        roomsHome = 0;
         embers = Math.min(EMBER_CAP, embers + 1);
         for (const h of active()) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * 0.25);
         entry.gained.push('rest (+25% HP)');
