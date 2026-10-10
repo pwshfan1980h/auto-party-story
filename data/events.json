@@ -1,0 +1,43 @@
+{
+  "_doc": "Event rooms. Each choice has a reward and a risk the Leader weighs by temperament (headless), and outcomes rolled by chance. Outcome kinds: loot {items, each (per floor)}, heal {pct}, hurt {pct}, torch {n}, embers {n}, xp {n per floor}, ambush {room}, reveal, dropItem {n}.",
+  "events": [
+    { "id": "sarcophagus", "text": "A sealed sarcophagus, its lid carved with a warning nobody can read any more.",
+      "choices": [
+        { "label": "Pry it open", "reward": 0.8, "risk": 0.5, "outcomes": [ { "chance": 0.55, "loot": { "items": 2, "each": 16 }, "say": "Grave goods, still bright." }, { "chance": 0.45, "ambush": { "room": "normal" }, "say": "Something inside was waiting." } ] },
+        { "label": "Leave it be", "reward": 0, "risk": 0, "outcomes": [ { "chance": 1, "say": "The party walks on." } ] }
+      ] },
+    { "id": "stranger", "text": "A wounded stranger slumps against the wall and begs for water and light.",
+      "choices": [
+        { "label": "Share torch and water", "reward": 0.4, "risk": 0.1, "outcomes": [ { "chance": 1, "torch": { "n": -1 }, "reveal": true, "say": "Grateful, they tell you the way ahead." } ] },
+        { "label": "Take what they carry", "reward": 0.6, "risk": 0.2, "outcomes": [ { "chance": 0.7, "loot": { "items": 1, "each": 12 }, "say": "They don't resist." }, { "chance": 0.3, "hurt": { "pct": 0.1 }, "say": "A hidden knife. A shallow cut, a bad omen." } ] },
+        { "label": "Walk on", "reward": 0, "risk": 0, "outcomes": [ { "chance": 1, "say": "Their pleading fades behind you." } ] }
+      ] },
+    { "id": "mushrooms", "text": "Pale mushrooms glow in a damp hollow. Some look like the healing kind. Some don't.",
+      "choices": [
+        { "label": "Eat them", "reward": 0.5, "risk": 0.4, "outcomes": [ { "chance": 0.55, "heal": { "pct": 0.2 }, "say": "Warmth spreads through tired limbs." }, { "chance": 0.45, "hurt": { "pct": 0.12 }, "say": "Not the healing kind." } ] },
+        { "label": "Harvest them to sell", "reward": 0.4, "risk": 0.05, "outcomes": [ { "chance": 1, "loot": { "items": 1, "each": 10 }, "say": "A pouch of glowing caps." } ] },
+        { "label": "Leave them", "reward": 0, "risk": 0, "outcomes": [ { "chance": 1, "say": "Better safe." } ] }
+      ] },
+    { "id": "offering", "text": "An old shrine with an empty offering bowl. The air around it is warm.",
+      "choices": [
+        { "label": "Offer something from the pack", "reward": 0.6, "risk": 0.1, "needsPack": true, "outcomes": [ { "chance": 1, "dropItem": { "n": 1 }, "embers": { "n": 1 }, "heal": { "pct": 0.15 }, "say": "The bowl takes it. The warmth stays with you." } ] },
+        { "label": "Pray", "reward": 0.2, "risk": 0, "outcomes": [ { "chance": 1, "heal": { "pct": 0.05 }, "say": "A little peace." } ] },
+        { "label": "Walk on", "reward": 0, "risk": 0, "outcomes": [ { "chance": 1, "say": "The warmth fades behind you." } ] }
+      ] },
+    { "id": "whispers", "text": "Whispers seep from a crack in the wall, naming the rooms ahead.",
+      "choices": [
+        { "label": "Listen", "reward": 0.5, "risk": 0.3, "outcomes": [ { "chance": 0.7, "reveal": true, "say": "Now you know what waits." }, { "chance": 0.3, "hurt": { "pct": 0.08 }, "reveal": true, "say": "They whisper true, and it costs you." } ] },
+        { "label": "Seal it with stones", "reward": 0, "risk": 0, "outcomes": [ { "chance": 1, "say": "Silence." } ] }
+      ] },
+    { "id": "bridge", "text": "A rope bridge sags over a black drop. The long way round is dry and slow.",
+      "choices": [
+        { "label": "Cross the bridge", "reward": 0.4, "risk": 0.35, "outcomes": [ { "chance": 0.75, "torch": { "n": 1 }, "say": "Across, and time saved." }, { "chance": 0.25, "hurt": { "pct": 0.15 }, "say": "A plank gives way." } ] },
+        { "label": "The long way", "reward": 0, "risk": 0, "outcomes": [ { "chance": 1, "torch": { "n": -1 }, "say": "Slow, but whole." } ] }
+      ] },
+    { "id": "lost_patrol", "text": "The remains of another party. Their packs are still here. So is whatever got them.",
+      "choices": [
+        { "label": "Search the packs", "reward": 0.9, "risk": 0.6, "outcomes": [ { "chance": 0.5, "loot": { "items": 3, "each": 14 }, "say": "Their loss, your gain." }, { "chance": 0.5, "ambush": { "room": "elite" }, "loot": { "items": 1, "each": 14 }, "say": "It comes back for its kill." } ] },
+        { "label": "Pay respects and go", "reward": 0.1, "risk": 0, "outcomes": [ { "chance": 1, "xp": { "n": 10 }, "say": "A lesson, taken to heart." } ] }
+      ] }
+  ]
+}

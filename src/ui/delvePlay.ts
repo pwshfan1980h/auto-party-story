@@ -25,7 +25,7 @@ const ORDER_UI: { kind: OrderKind; label: string; target: 'ally' | 'foe' | 'none
   { kind: 'fallback', label: 'Fall back!', target: 'none', hint: 'Get out of this fight, dropping some loot' },
 ];
 
-export interface DelveView { names: Record<string, string> }
+export interface DelveView { names: Record<string, string>; voices?: Record<string, { race: string; sex: 'm' | 'f' }> }
 
 export class DelvePlayer {
   replay: BattleReplay | null = null;
@@ -80,7 +80,15 @@ export class DelvePlayer {
         else answer = 'go';
         continue;
       }
-      if (q.kind === 'room' || q.kind === 'fight' || q.kind === 'council') this.setMaps(q.maps);
+      if (q.kind === 'room' || q.kind === 'fight' || q.kind === 'council' || q.kind === 'event') this.setMaps(q.maps);
+      if (q.kind === 'event') {
+        this.entries.push(q.entry);
+        this.drawHud(q.entry);
+        sfx.footsteps(3);
+        this.pendingQ = q;
+        this.openEvent(q);
+        return;
+      }
       if (q.kind === 'room') {
         // a fight's room was already shown when the fight began
         if (!this.entries.includes(q.entry)) this.entries.push(q.entry);
@@ -196,6 +204,8 @@ export class DelvePlayer {
   private openCouncil(q: Extract<DelveRequest, { kind: 'council' }>) {
     this.councilOpen = true;
     sfx.ui('click');
+    const lv = this.view.voices?.[q.call.leader];
+    if (lv) sfx.voice(lv.race, lv.sex, q.call.reason, 'murmur');
     const map = this.maps.get(q.floor);
     const leader = this.view.names[q.call.leader] ?? 'The Leader';
     const target = map?.nodes[q.target];
@@ -223,6 +233,32 @@ export class DelvePlayer {
     this.hud.append(panel);
   }
 
+  // ---------- event rooms ----------
+
+  private openEvent(q: Extract<DelveRequest, { kind: 'event' }>) {
+    this.councilOpen = true;
+    setTimeout(() => sfx.room('event'), 300);
+    const leaderId = q.entry.call?.leader ?? '';
+    const lv = this.view.voices?.[leaderId];
+    if (lv) sfx.voice(lv.race, lv.sex, q.event.choices[q.suggested].label, 'murmur');
+    const choose = (i: number) => {
+      this.councilOpen = false;
+      panel.remove();
+      this.pendingQ = null;
+      this.advance(i);
+    };
+    const panel = el('div', { class: 'council-panel', role: 'dialog', 'aria-label': 'An event' },
+      el('h2', {}, 'In the dark'),
+      el('p', {}, q.event.text),
+      el('div', { class: 'acts' }, ...q.open.map((i) => el('button', {
+        type: 'button', class: i === q.suggested ? 'go' : '',
+        title: i === q.suggested ? `${this.view.names[leaderId] ?? 'The Leader'} would choose this` : '',
+        onclick: () => choose(i),
+      }, q.event.choices[i].label + (i === q.suggested ? ' ★' : '')))),
+      el('p', { class: 'muted' }, `★ ${this.view.names[leaderId] ?? 'the Leader'}'s choice`));
+    this.hud.append(panel);
+  }
+
   // ---------- the map and the room ----------
 
   private drawHud(e: LedgerEntry) {
@@ -239,7 +275,8 @@ export class DelvePlayer {
         call && this.lastLeader && call.leader !== this.lastLeader ? el('p', { class: 'warn' }, `${leaderName} takes up the torch.`) : null,
         call ? el('p', { class: 'council' }, `${leaderName}: “${call.reason}”`) : null,
         e.response === 'turned back' ? el('p', { class: 'warn' }, 'You called it: the party turns for home.') : null,
-        !e.fight && e.gained.length ? el('p', { class: 'gain' }, `Found ${e.gained.join(', ')}`) : null,
+        e.event ? el('p', {}, `${e.event.text} `, e.event.choice ? el('em', {}, `(${e.event.choice})`) : '') : null,
+        !e.fight && e.gained.length ? el('p', { class: 'gain' }, e.event ? e.gained.join(' · ') : `Found ${e.gained.join(', ')}`) : null,
         !e.fight && e.lost.length ? el('p', { class: 'warn' }, e.lost.join(', ')) : null),
     );
   }

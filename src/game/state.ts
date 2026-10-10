@@ -4,6 +4,8 @@ import campJson from '../../data/camp.json';
 import { CLASSES, RACES, TIERS } from '../sim/data';
 import { stream } from '../sim/rng';
 import { ZONE, type RosterHero } from '../sim/roster';
+import { ITEMS } from '../sim/data';
+import { canEquip } from '../sim/items';
 import type { RunResult } from '../sim/run';
 
 export const TIER_IDS = ['I', 'II', 'III'];
@@ -32,6 +34,29 @@ export interface GameState {
   pending?: { plan: import('./expedition').DelvePlan; run: number };
   /** Torchwatch upgrades built so far (they last for the whole save). */
   camp?: string[];
+  /** Equipment waiting in Torchwatch's stores. */
+  stash?: string[];
+}
+
+/** Put an item from the stash on a hero (or take one off into the stash, with itemId null). */
+export function equip(state: GameState, heroId: string, slot: string, itemId: string | null): string | null {
+  const h = state.roster.find((x) => x.hero.id === heroId);
+  if (!h) return 'No such hero.';
+  const items = [...(h.hero.items ?? [])];
+  const current = items.findIndex((id) => ITEMS[id]?.slot === slot);
+  const stash = [...(state.stash ?? [])];
+  if (itemId) {
+    const at = stash.indexOf(itemId);
+    if (at < 0) return 'That item isn\u2019t in the stores.';
+    if (ITEMS[itemId].slot !== slot || !canEquip(h.hero.classId, itemId)) return `${h.hero.name} can\u2019t use that.`;
+    stash.splice(at, 1);
+  }
+  if (current >= 0) stash.push(items.splice(current, 1)[0]);
+  if (itemId) items.push(itemId);
+  h.hero = { ...h.hero, items };
+  state.stash = stash;
+  saveGame(state);
+  return null;
 }
 
 export interface CampUpgrade { name: string; cost: number; about: string; effect: { recovery?: number; torch?: number; recruitLevel?: number } }

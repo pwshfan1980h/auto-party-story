@@ -1,0 +1,17 @@
+{
+  "_doc": "Gibberish voices by race and sex: a pitch (Hz), how fast they talk (syllables per second), grit (0-1 breathiness and growl), and a vowel colour shift (formant scale). Generated, never recorded; kept low and soft.",
+  "races": {
+    "human":    { "m": { "pitch": 115, "rate": 7,   "grit": 0.15, "formant": 1.0 },  "f": { "pitch": 195, "rate": 7.5, "grit": 0.1,  "formant": 1.12 } },
+    "dwarf":    { "m": { "pitch": 95,  "rate": 6,   "grit": 0.35, "formant": 0.9 },  "f": { "pitch": 165, "rate": 6.5, "grit": 0.25, "formant": 1.0 } },
+    "elf":      { "m": { "pitch": 135, "rate": 6.5, "grit": 0.05, "formant": 1.08 }, "f": { "pitch": 215, "rate": 6.5, "grit": 0.05, "formant": 1.18 } },
+    "halfling": { "m": { "pitch": 150, "rate": 8.5, "grit": 0.1,  "formant": 1.12 }, "f": { "pitch": 225, "rate": 8.5, "grit": 0.08, "formant": 1.2 } },
+    "orc":      { "m": { "pitch": 82,  "rate": 5.5, "grit": 0.55, "formant": 0.85 }, "f": { "pitch": 140, "rate": 6,   "grit": 0.4,  "formant": 0.95 } },
+    "goblin":   { "m": { "pitch": 175, "rate": 10,  "grit": 0.45, "formant": 1.15 }, "f": { "pitch": 230, "rate": 10,  "grit": 0.4,  "formant": 1.22 } }
+  },
+  "moods": {
+    "shout":  { "pitch": 1.25, "rate": 1.15, "loud": 1.3, "fall": 0.85 },
+    "pain":   { "pitch": 1.1,  "rate": 0.7,  "loud": 1.1, "fall": 0.55 },
+    "cheer":  { "pitch": 1.3,  "rate": 1.1,  "loud": 1.2, "fall": 1.15 },
+    "murmur": { "pitch": 0.95, "rate": 0.95, "loud": 0.7, "fall": 0.9 }
+  }
+}

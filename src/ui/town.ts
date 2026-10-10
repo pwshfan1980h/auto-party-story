@@ -3,7 +3,17 @@ import { CLASSES, RACES, TIERS } from '../sim/data';
 import { leaderProfile, type Doctrine } from '../sim/leader';
 import { xpToNext, type RosterHero } from '../sim/roster';
 import { hire, partySizeFor, planProblem, type DelvePlan } from '../game/expedition';
-import { build, CAMP, hireCost, TIER_IDS, type GameState } from '../game/state';
+import { build, CAMP, equip, hireCost, TIER_IDS, type GameState } from '../game/state';
+import { ITEMS } from '../sim/data';
+import { canEquip, SLOTS } from '../sim/items';
+
+const STAT_LABEL: Record<string, string> = { power: 'power', spell: 'spell', armor: 'armour', maxHp: 'HP', crit: 'crit', evasion: 'evasion', parry: 'parry', block: 'block', move: 'speed', healPower: 'healing', energyGain: 'energy' };
+function describe(id: string): string {
+  const it = ITEMS[id];
+  const parts = Object.entries(it.add).map(([k, v]) => `${(v ?? 0) > 0 ? '+' : ''}${(v ?? 0) < 1 && (v ?? 0) > -1 ? `${Math.round((v ?? 0) * 100)}%` : v} ${STAT_LABEL[k] ?? k}`);
+  if (it.gear && it.slot !== 'armour' && it.slot !== 'trinket') parts.unshift(it.gear);
+  return parts.join(', ');
+}
 import { clear, el } from './dom';
 import { portrait } from './portrait';
 
@@ -20,6 +30,7 @@ export interface TownHandlers { onDelve(plan: DelvePlan): void; onAbandon(): voi
 export class Town {
   private plan: DelvePlan;
   private abandonArmed = false;
+  private gearOpen: string | null = null;
 
   constructor(private readonly root: HTMLElement, private state: GameState, private readonly on: TownHandlers) {
     const tier = TIER_IDS[state.unlocked];
@@ -128,10 +139,28 @@ export class Town {
         el('span', {}, `${RACES[h.hero.raceId]?.name ?? h.hero.raceId} ${CLASSES[h.hero.classId]?.name ?? h.hero.classId}`),
         el('span', {}, `Level ${h.hero.level}`, el('meter', { min: 0, max: xpToNext(h.hero.level), value: Math.floor(h.xp), title: `${Math.floor(h.xp)} / ${xpToNext(h.hero.level)} XP` })),
         el('span', { class: 'muted' }, `Leadership ${h.hero.leadership} (${rank})${h.runsLed ? ` · led ${h.runsLed}` : ''}`),
-        resting ? el('span', { class: 'warn' }, `Recovering: ${h.benched} delve${h.benched > 1 ? 's' : ''}`) : null),
+        resting ? el('span', { class: 'warn' }, `Recovering: ${h.benched} delve${h.benched > 1 ? 's' : ''}`) : null,
+        (h.hero.items ?? []).length ? el('span', { class: 'gear-line' }, (h.hero.items ?? []).map((i) => ITEMS[i]?.name ?? i).join(' · ')) : null),
       el('div', { class: 'acts' },
         el('button', { type: 'button', 'aria-pressed': String(inParty), disabled: resting || (!inParty && full), onclick: toggle }, inParty ? 'Going' : 'Take'),
-        el('button', { type: 'button', 'aria-pressed': String(this.plan.leaderId === id), disabled: !inParty, title: 'Carries the torch and makes the calls', onclick: () => { this.plan.leaderId = id; this.render(); } }, 'Lead')));
+        el('button', { type: 'button', 'aria-pressed': String(this.plan.leaderId === id), disabled: !inParty, title: 'Carries the torch and makes the calls', onclick: () => { this.plan.leaderId = id; this.render(); } }, 'Lead'),
+        el('button', { type: 'button', 'aria-pressed': String(this.gearOpen === id), onclick: () => { this.gearOpen = this.gearOpen === id ? null : id; this.render(); } }, 'Gear')),
+      this.gearOpen === id ? this.gearEditor(h) : null);
+  }
+
+  /** One select per slot: what's worn, or anything in the stores this hero can use. */
+  private gearEditor(h: RosterHero) {
+    const stash = this.state.stash ?? [];
+    const slots = SLOTS.filter((sl) => sl !== 'shield' || CLASSES[h.hero.classId]?.gear?.shield);
+    return el('div', { class: 'gear-edit' }, ...slots.map((slot) => {
+      const worn = (h.hero.items ?? []).find((i) => ITEMS[i]?.slot === slot);
+      const options = [...new Set(stash.filter((i) => ITEMS[i]?.slot === slot && canEquip(h.hero.classId, i)))];
+      return el('label', {}, `${slot[0].toUpperCase()}${slot.slice(1)} `,
+        el('select', { onchange: (e: Event) => { const v = (e.target as HTMLSelectElement).value; equip(this.state, h.hero.id, slot, v || null); this.render(); } },
+          el('option', { value: '' }, worn ? '(take off)' : '(none)'),
+          worn ? el('option', { value: worn, selected: true, disabled: true }, ITEMS[worn].name) : null,
+          ...options.map((i) => el('option', { value: i }, `${ITEMS[i].name} (${describe(i)})`))));
+    }), stash.length ? null : el('span', { class: 'muted' }, 'The stores are empty. Delves turn up gear.'));
   }
 
   private hireCard(h: RosterHero) {

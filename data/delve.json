@@ -9,5 +9,6 @@
     "treasure": [2, 14],
     "event": [1, 8]
   },
-  "council": { "_doc": "When the Leader's call goes to the Council with a warning.", "bigRoomBelowHp": 0.75, "fuelSpare": 3 }
+  "council": { "_doc": "When the Leader's call goes to the Council with a warning.", "bigRoomBelowHp": 0.75, "fuelSpare": 3 },
+  "events": { "_doc": "How heavily a Leader weighs an event choice's risk: (riskWeight − party HP − push bias).", "riskWeight": 2.6 }
 }
