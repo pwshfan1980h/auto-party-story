@@ -5,10 +5,10 @@ import type { Doctrine } from '../sim/leader';
 import { hash32 } from '../sim/rng';
 import { applyRun, type RunAftermath } from '../sim/roster';
 import { delveSteps, runRun, type DelveAnswer, type DelveRequest, type RunResult, type RunSetup } from '../sim/run';
-import { campEffect, hireCost, refreshBoard, saveGame, TIER_IDS, type GameState } from './state';
+import { campEffect, candidate, hireCost, refreshBoard, saveGame, TIER_IDS, type GameState } from './state';
 
 export interface DelvePlan { partyIds: string[]; leaderId: string; tier: string; doctrine: Doctrine; fromWaystone: boolean }
-export interface DelveOutcome { result: RunResult; aftermath: RunAftermath; unlockedTier?: string; names: Record<string, string>; classes: Record<string, string> }
+export interface DelveOutcome { result: RunResult; aftermath: RunAftermath; unlockedTier?: string; names: Record<string, string>; classes: Record<string, string>; volunteers?: string[] }
 
 export function partySizeFor(tier: string) { return TIERS[tier].partySize; }
 
@@ -90,8 +90,36 @@ export function settleDelve(state: GameState, plan: DelvePlan, result: RunResult
   state.history = state.history.slice(0, 30);
   delete state.pending;
   refreshBoard(state);
+  const volunteers = assist(state);
   saveGame(state);
-  return { result, aftermath, unlockedTier, names, classes };
+  return { result, aftermath, unlockedTier, names, classes, volunteers: volunteers.length ? volunteers : undefined };
+}
+
+/**
+ * Launch assistance: a company that can't field a starting party, and can't afford to hire one,
+ * gets volunteers from the Inn for free. Losing everyone is a setback, never the end of the save.
+ */
+export function assist(state: GameState): string[] {
+  const need = TIERS[TIER_IDS[0]].partySize;
+  const cheapest = Math.min(...state.hireBoard.map((h) => hireCost(h)), Infinity);
+  const canHire = Number.isFinite(cheapest) ? Math.floor(state.coin / cheapest) : 0;
+  const short = need - state.roster.length - Math.min(canHire, state.hireBoard.length);
+  const names: string[] = [];
+  for (let i = 0; i < short; i++) {
+    const roles = ['fighter', 'cleric', 'ranger'];
+    const have = new Set(state.roster.map((h) => h.hero.classId));
+    const v = candidate(state, 1, roles.find((r) => !have.has(r)) ?? 'fighter');
+    v.born = state.runs;
+    state.roster.push(v);
+    names.push(v.hero.name);
+  }
+  return names;
+}
+
+/** When everyone is still recovering, time can pass in town: everyone's recovery moves on by one delve. */
+export function rest(state: GameState): void {
+  for (const h of state.roster) if (h.benched > 0) h.benched--;
+  saveGame(state);
 }
 
 /** A delve the page closed on: the party carried on without the player (no orders, the Leader's calls stand). */

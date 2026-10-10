@@ -174,3 +174,28 @@ describe('items', () => {
     expect(foundAny).toBe(true);
   });
 });
+
+describe('launch assistance', () => {
+  it('a broke company with too few heroes gets volunteers, and a fully recovering one can rest', async () => {
+    const { assist, rest, planProblem } = await import('../src/game/expedition');
+    const s = newGame(41);
+    s.roster = [s.roster[0]];
+    s.coin = 0;
+    const names = assist(s);
+    expect(names.length).toBe(2);
+    expect(s.roster.length).toBe(3);
+    for (const h of s.roster) h.benched = 1;
+    const ids = s.roster.map((h) => h.hero.id);
+    expect(planProblem(s, { partyIds: ids, leaderId: ids[0], tier: 'I', doctrine: 'balanced', fromWaystone: false })).toMatch(/recovering/);
+    rest(s);
+    expect(planProblem(s, { partyIds: ids, leaderId: ids[0], tier: 'I', doctrine: 'balanced', fromWaystone: false })).toBeNull();
+  });
+
+  it('a company that can afford to hire is left to hire', async () => {
+    const { assist } = await import('../src/game/expedition');
+    const s = newGame(42);
+    s.roster = [];
+    s.coin = 1000;
+    expect(assist(s)).toEqual([]);
+  });
+});

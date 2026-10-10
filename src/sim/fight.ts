@@ -205,6 +205,11 @@ export class Fight {
   private readonly full: boolean;
   private readonly maxTicks: number;
   private readonly hash = new SpatialHash<Unit>(64);
+  // scratch arrays for hash queries in hot loops (never nested)
+  private readonly near: Unit[] = [];
+  private readonly aliveBuf: Unit[] = [];
+  private readonly orderBuf: Unit[] = [];
+  private readonly nearArea: Unit[] = [];
   private readonly fields = new Map<string, { at: number; dist: Float32Array }>();
   private readonly byId = new Map<string, Unit>();
   private teamCache: [Unit[], Unit[]] = [[], []];
@@ -406,11 +411,15 @@ export class Fight {
   step() {
     if (this.result) return;
     this.tick++;
-    const order = this.units.filter((u) => u.alive);
+    // the living, in a turn order that rotates each tick (reusing two buffers, not building new arrays)
+    const order = this.aliveBuf, ordered = this.orderBuf;
+    order.length = 0;
+    for (const u of this.units) if (u.alive) order.push(u);
     const n = order.length;
     this.peakUnits = Math.max(this.peakUnits, n);
     const rot = n ? this.tick % n : 0;
-    const ordered = n ? [...order.slice(rot), ...order.slice(0, rot)] : order;
+    ordered.length = 0;
+    for (let i = 0; i < n; i++) ordered.push(order[(i + rot) % n]);
 
     this.hash.clear();
     for (const u of ordered) this.hash.insert(u);
@@ -515,9 +524,10 @@ export class Fight {
   }
 
   private condition(u: Unit, cond: string): boolean {
-    return cond.split('&').every((c) => {
-      const [name, a, b] = c.split(':');
-      const p = a !== undefined ? +a : 0, q = b !== undefined ? +b : 0;
+    // rule conditions are parsed once and cached: "name:p:q&name:p:q"
+    let parsed = PARSED_CONDITIONS.get(cond);
+    if (!parsed) PARSED_CONDITIONS.set(cond, parsed = cond.split('&').map((c) => { const [name, a, b] = c.split(':'); return [name, a !== undefined ? +a : 0, b !== undefined ? +b : 0] as [string, number, number]; }));
+    return parsed.every(([name, p, q]) => {
       switch (name) {
         case 'always': return true;
         case 'energyFull': return !!u.ult && u.energy >= 100;
@@ -580,9 +590,11 @@ export class Fight {
     const nav = this.field.nav;
     const cell = Math.floor(gy * 2) * nav.w + Math.floor(gx * 2);
     const key = String(cell);
+    // the nav grid never changes mid-fight, so a goal's distance field is good for the whole fight
     const f = this.fields.get(key);
-    if (f && this.tick - f.at < 10) return f.dist;
+    if (f) return f.dist;
     const dist = flowField(nav, [{ x: gx, y: gy }], 1);
+    if (this.fields.size > 400) this.fields.clear();
     this.fields.set(key, { at: this.tick, dist });
     return dist;
   }
@@ -603,9 +615,10 @@ export class Fight {
   private faceThreat(u: Unit, t: Unit | undefined, intent?: string): boolean {
     if (intent === 'retreat' || this.flag(u, 'fear')) return false;
     const foes = this.teamCache[1 - u.team];
-    let near: Unit | undefined, best = 2.5;
-    for (const e of foes) { const d = this.dist(u, e); if (d < best) { best = d; near = e; } }
-    const foe = near ?? (t && t.team !== u.team && t.alive && this.dist(u, t) < 6 ? t : undefined);
+    // squared distances: same choices, no square roots in a per-tick loop
+    let near: Unit | undefined, best = 2.5 * 2.5;
+    for (const e of foes) { const dx = e.x - u.x, dy = e.y - u.y, d = dx * dx + dy * dy; if (d < best) { best = d; near = e; } }
+    const foe = near ?? (t && t.team !== u.team && t.alive && (t.x - u.x) ** 2 + (t.y - u.y) ** 2 < 36 ? t : undefined);
     if (!foe) return false;
     u.fx = foe.x - u.x; u.fy = foe.y - u.y;
     return true;
@@ -658,7 +671,7 @@ export class Fight {
       }
     }
     // separation (spatial hash, no O(n²))
-    for (const o of this.hash.query(u.x, u.y, u.base.radius + 0.45)) {
+    for (const o of this.hash.query(u.x, u.y, u.base.radius + 0.45, this.near)) {
       if (o === u || !o.alive || o.downedLeft > 0) continue;
       const d = this.dist(u, o), min = u.base.radius + o.base.radius + 0.05;
       if (d < min && d > 1e-6) { const k = ((min - d) / min) * 1.4; dx += ((u.x - o.x) / d) * k; dy += ((u.y - o.y) / d) * k; }
@@ -834,7 +847,7 @@ export class Fight {
     // a hostile blast throws the air back from where it lands
     if (ab.area && !ab.friendly && this.air.any) this.air.blast(ox, oy, area.r ?? 1);
     const out: Unit[] = [];
-    for (const o of this.hash.query(ox, oy, area.r + 0.6)) {
+    for (const o of this.hash.query(ox, oy, area.r + 0.6, this.nearArea)) {
       if (o.team !== team || !o.alive || (o.downedLeft > 0 && team !== u.team)) continue;
       if (o.downedLeft > 0) continue;
       if (this.dist(o, { x: ox, y: oy }) > area.r + o.base.radius) continue;
@@ -1258,6 +1271,7 @@ export class Fight {
 }
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
+const PARSED_CONDITIONS = new Map<string, [string, number, number][]>();
 
 export function runFight(setup: FightSetup): FightResult {
   return new Fight(setup).run();

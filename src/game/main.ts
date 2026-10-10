@@ -2,6 +2,7 @@
 import { sfx } from '../audio/sfx';
 import { rollLook } from '../art/humanoid';
 import { BattleScene } from '../render/scene';
+import { TIERS } from '../sim/data';
 import { DelvePlayer } from '../ui/delvePlay';
 import { renderLedger } from '../ui/ledger';
 import { ScoutLens } from '../ui/lens';
@@ -26,6 +27,7 @@ if (finishedWithoutYou) renderLedger(app, finishedWithoutYou, () => { town.setSt
 function startDelve(plan: DelvePlan) {
   sfx.unlock();
   sfx.ui('delve');
+  sfx.ambience(TIERS[plan.tier].biome);
   // the save remembers the delve is under way before the first step: Hardcore
   const steps = beginDelve(state, plan);
   const names = Object.fromEntries(state.roster.map((h) => [h.hero.id, h.hero.name]));
@@ -37,6 +39,7 @@ function startDelve(plan: DelvePlan) {
 }
 
 function showLedger(out: DelveOutcome) {
+  sfx.ambience(null);
   player?.dispose();
   player = null;
   document.body.classList.remove('delving');

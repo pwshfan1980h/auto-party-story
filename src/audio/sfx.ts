@@ -316,6 +316,54 @@ export class Sfx {
     }
   }
 
+  // ---------- ambience ----------
+
+  private amb: { stop: () => void } | null = null;
+
+  /**
+   * A biome's bed of sound under the whole delve: the crypt is cold air and slow drips, the
+   * caverns a wet hum with bubbling. Quiet, low, and never quite repeating. null stops it.
+   */
+  ambience(biome: string | null) {
+    this.amb?.stop();
+    this.amb = null;
+    if (!biome || !this.ctx) return;
+    const ctx = this.ctx, t0 = this.now;
+    const bus = ctx.createGain();
+    bus.gain.setValueAtTime(0.0001, t0);
+    bus.gain.exponentialRampToValueAtTime(0.5, t0 + 3);
+    bus.connect(this.master);
+    // the air itself: looping noise through a slowly breathing low-pass
+    const src = ctx.createBufferSource(); src.buffer = this.noiseBuf; src.loop = true;
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = biome === 'fungal' ? 260 : 380; lp.Q.value = 0.6;
+    const lfo = ctx.createOscillator(); lfo.frequency.value = 0.07;
+    const depth = ctx.createGain(); depth.gain.value = biome === 'fungal' ? 90 : 160;
+    lfo.connect(depth).connect(lp.frequency);
+    const air = ctx.createGain(); air.gain.value = biome === 'fungal' ? 0.05 : 0.07;
+    src.connect(lp).connect(air).connect(bus);
+    // a low drone under it
+    const drone = ctx.createOscillator(); drone.type = 'sine'; drone.frequency.value = biome === 'fungal' ? 49 : 41;
+    const dg = ctx.createGain(); dg.gain.value = 0.035;
+    drone.connect(dg).connect(bus);
+    src.start(t0); lfo.start(t0); drone.start(t0);
+    // now and then: a drip in the crypt, a bubble in the caverns
+    const timer = setInterval(() => {
+      if (this.muted || Math.random() < 0.4) return;
+      const t = this.now, o = this.out((Math.random() - 0.5) * 1.4, 0.6);
+      if (biome === 'fungal') this.tone(o, t, 0.12, 0.05, 'sine', 180 + Math.random() * 120, 320, 0.01);
+      else { this.tone(o, t, 0.08, 0.06, 'sine', 420 + Math.random() * 160, 260, 0.002); }
+    }, 1400);
+    this.amb = {
+      stop: () => {
+        clearInterval(timer);
+        const t = this.now;
+        bus.gain.cancelScheduledValues(t);
+        bus.gain.setTargetAtTime(0.0001, t, 0.6);
+        setTimeout(() => { src.stop(); lfo.stop(); drone.stop(); bus.disconnect(); }, 2500);
+      },
+    };
+  }
+
   // ---------- the delve ----------
 
   /** The party walking between rooms: boots on stone, softly panned. */
