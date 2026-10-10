@@ -1,10 +1,9 @@
 // A simulated campaign (spec 09 §4): a bot plays from a fresh roster through the tiers, so
 // progression pacing, permadeath and recovery can be measured without a human.
 import { PROGRESSION, TIERS } from './data';
-import type { Zone } from './types';
 import { stream } from './rng';
+import { applyRun, ZONE, type RosterHero } from './roster';
 import { runRun, type RunPolicy, type RunResult } from './run';
-import type { RunHero } from './run';
 
 export interface CampaignOptions {
   seed: number;
@@ -18,7 +17,6 @@ export interface CampaignOptions {
   pushAt?: number;
 }
 
-interface RosterHero { hero: RunHero; xp: number; benched: number; runsLed: number; alive: boolean; born: number }
 
 export interface CampaignResult {
   runs: number;
@@ -42,8 +40,7 @@ export interface CampaignResult {
 
 const TIER_IDS = ['I', 'II', 'III'];
 const CLASS_RACE = ['human', 'dwarf', 'elf', 'halfling'];
-const ZONE: Record<string, Zone> = { fighter: 'front', knight: 'front', berserker: 'front', rogue: 'middle', assassin: 'middle', bard: 'middle', cleric: 'back', ranger: 'back', sniper: 'back', mage: 'back', alchemist: 'back', necromancer: 'back' };
-export const xpToNext = (level: number) => Math.round(PROGRESSION.xpCurve.base * Math.pow(level, PROGRESSION.xpCurve.exponent));
+export { xpToNext } from './roster';
 
 export function runCampaign(options: CampaignOptions): CampaignResult {
   const opt = { tierSlack: PROGRESSION.bot.tierSlack, pushAt: PROGRESSION.bot.pushAt, ...options };
@@ -99,21 +96,9 @@ export function runCampaign(options: CampaignOptions): CampaignResult {
     log.push({ tier, level: +avg(party).toFixed(1), outcome: r.outcome, died: r.died.length, floors: r.floorsReached });
     hours += (r.fightSeconds / 60 + r.rooms * 0.4 + 2) / 60;
     heroRuns += party.length;
-    // XP, with the over-level penalty and catch-up bonus (spec 08)
-    const survivors = party.filter((h) => !r.died.includes(h.hero.id));
-    let progressed = false;
-    for (const h of survivors) {
-      let share = r.xp / Math.max(1, survivors.length);
-      if (h.hero.level >= TIERS[tier].heroLevel + PROGRESSION.overLevelGap) share *= PROGRESSION.overLevelMult;
-      else if (h.hero.level < TIERS[tier].heroLevel) share *= PROGRESSION.underLevelMult;
-      h.xp += share;
-      while (h.hero.level < PROGRESSION.maxLevel && h.xp >= xpToNext(h.hero.level)) { h.xp -= xpToNext(h.hero.level); h.hero = { ...h.hero, level: h.hero.level + 1 }; progressed = true; }
-      if (r.carried.includes(h.hero.id)) h.benched = 2;
-    }
-    leader.runsLed++;
-    if (leader.runsLed % 4 === 0 && leader.hero.leadership < 10) leader.hero = { ...leader.hero, leadership: leader.hero.leadership + 1 };
-    for (const h of party) if (r.died.includes(h.hero.id)) { h.alive = false; deaths++; lost++; }
-    for (const h of roster) if (!party.includes(h) && h.benched > 0) h.benched--;
+    const after = applyRun(roster, party, leader, r, tier);
+    let progressed = after.levelled.length > 0;
+    deaths += after.died.length; lost += after.died.length;
     if (r.floorsReached > bestFloor) { bestFloor = r.floorsReached; progressed = true; }
     if (r.outcome === 'cleared' && ti === unlocked) {
       progressed = true;
