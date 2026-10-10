@@ -186,7 +186,8 @@ export function decide(L: LeaderProfile, truth: PartyState, map: FloorMap, at: n
     else if (temper.streak === 'charge') return result('push', 2, 'They bloodied us. Now we bloody them!', 0.7);
   }
   // 4. pack
-  if (allowed(3) && !planner) {
+  // under the depth doctrine the party is here for the boss, not the loot
+  if (allowed(3) && !planner && doc !== 'depth') {
     checks[3] = 'pass';
     if (read.pack >= 0.85 && read.packValue >= 0.7 && greed < 0.8) return result('retreat', 3, 'The pack is full of good things. Bank it.', 0.7);
   }

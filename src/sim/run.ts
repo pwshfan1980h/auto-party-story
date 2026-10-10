@@ -34,6 +34,8 @@ export interface RunSetup {
   torch?: number;
   packSlots?: number;
   policy?: RunPolicy;
+  /** Start at a waystone: a floor of this tier already reached (defaults to the tier's first floor). */
+  startFloor?: number;
 }
 
 export interface LedgerEntry {
@@ -94,7 +96,10 @@ export function runRun(setup: RunSetup): RunResult {
   const leaderRng = stream(setup.seed, 'leader');
   const slots = setup.packSlots ?? 8;
   // the party brings torches for the planned depth (the Market sells them in the full game)
-  let torch = setup.torch ?? DELVE.torch.base + DELVE.torch.perFloor * tier.floorsPerRun;
+  // a waystone skips the floors above it; the party packs torches for the floors left
+  const first = Math.max(tier.floors[0], Math.min(tier.floors[1], setup.startFloor ?? tier.floors[0]));
+  const floorCount = Math.min(tier.floorsPerRun, tier.floors[1] - first + 1);
+  let torch = setup.torch ?? DELVE.torch.base + DELVE.torch.perFloor * floorCount;
   const heroes = new Map<string, HeroState>(setup.party.map((h) => [h.id, { snap: h, hp: -1, maxHp: -1, energy: 0, alive: true, carried: false, dealt: 0, healed: 0, kills: 0 }]));
   let leaderId = setup.leaderId;
   let leaderDied = false;
@@ -241,9 +246,9 @@ export function runRun(setup: RunSetup): RunResult {
     return 'retreat';
   }
 
-  for (let f = 0; f < tier.floorsPerRun && !outcome; f++) {
-    const floor = Math.min(tier.floors[1], tier.floors[0] + f);
-    const last = f === tier.floorsPerRun - 1;
+  for (let f = 0; f < floorCount && !outcome; f++) {
+    const floor = Math.min(tier.floors[1], first + f);
+    const last = f === floorCount - 1;
     const map = generateFloor(setup.seed, setup.tier, floor, last);
     maps.push(map);
     floorsReached = floor;
