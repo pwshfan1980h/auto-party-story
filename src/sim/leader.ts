@@ -1,6 +1,7 @@
 // The Leader's run decisions (spec 07): perception with noise, the ordered decision tree,
 // route choice on the fogged map, and everything the Council view needs to show the call.
-import { LEADERSHIP, RACES, type LeaderRankDef, type TemperamentDef } from './data';
+import { BASELINES, LEADERSHIP, RACES, type BaselineRow, type LeaderRankDef, type TemperamentDef } from './data';
+import { lootValue } from './loot';
 import type { FloorMap, NodeType } from './delve';
 import type { Rng } from './rng';
 
@@ -34,6 +35,52 @@ export interface PartyState {
   floor: number;
   /** Rooms to walk back through to get out (0 at a campfire, which is a shortcut out). */
   roomsHome: number;
+  /** For expected-value planning (Seasoned+). */
+  tierId?: string;
+  packRaw?: number;
+  heroes?: number;
+  heroLevel?: number;
+}
+
+const FIGHT_ROOM: Partial<Record<NodeType | '?', string>> = { fight: 'normal', elite: 'elite', horde: 'horde', boss: 'boss', '?': 'normal' };
+
+/** Baseline for a room at a party HP level, interpolated between measured rows. */
+function baseline(tier: string, type: NodeType | '?', hp: number): BaselineRow {
+  const room = FIGHT_ROOM[type];
+  const rows = room && BASELINES[tier]?.[room];
+  if (!rows) return { hp, win: 1, hpCost: 0, deaths: 0 };
+  if (hp <= rows[0].hp) return rows[0];
+  for (let i = 1; i < rows.length; i++) if (hp <= rows[i].hp) {
+    const a = rows[i - 1], b = rows[i], k = (hp - a.hp) / (b.hp - a.hp);
+    return { hp, win: a.win + (b.win - a.win) * k, hpCost: a.hpCost + (b.hpCost - a.hpCost) * k, deaths: a.deaths + (b.deaths - a.deaths) * k };
+  }
+  return rows[rows.length - 1];
+}
+
+/**
+ * Expected value of entering a room (spec 07, rank-dependent): loot and XP gained if the party wins, minus
+ * the pack lost on a wipe and the heroes expected to die for good. Better Leaders estimate it more truly
+ * (Seasoned are optimistic) and look further ahead (Veteran 1 room, Master 2).
+ */
+function roomEV(L: LeaderProfile, s: PartyState, map: FloorMap, id: number, hp: number, depth: number, greed: number): number {
+  const ev = LEADERSHIP.ev;
+  const n = map.nodes[id];
+  const type: NodeType | '?' = n.known ? n.type : '?';
+  let b = baseline(s.tierId ?? 'I', type, hp);
+  const opt = ev.optimism[L.rank.id] ?? 0;
+  if (opt) b = { ...b, win: b.win + (1 - b.win) * opt, deaths: b.deaths * (1 - opt) };
+  const heroValue = ev.heroValuePerLevel * (s.heroLevel ?? 2);
+  const heroes = s.heroes ?? 3;
+  const gain = lootValue(type, s.floor) * (0.6 + greed) * b.win;
+  const loss = (1 - b.win) * (s.packRaw ?? 0) + b.deaths * heroes * heroValue + (n.named && n.seen ? heroValue * heroes * 0.5 : 0);
+  let value = gain - loss;
+  if (type === 'campfire') value += (1 - hp) * heroValue * 0.3;
+  if (depth > 0 && n.known) {
+    const hpAfter = Math.max(0.05, Math.min(1, hp - b.hpCost + ev.dressing + (type === 'campfire' ? 0.25 : type === 'shrine' ? 0.1 : 0)));
+    const next = n.next.filter((c) => map.nodes[c].seen).map((c) => roomEV(L, s, map, c, hpAfter, depth - 1, greed));
+    if (next.length) value += ev.discount * Math.max(0, ...next);
+  }
+  return value;
 }
 
 export type CheckState = 'fired' | 'pass' | 'skip';
@@ -79,9 +126,18 @@ export function decide(L: LeaderProfile, truth: PartyState, map: FloorMap, at: n
   const here = map.nodes[at];
   const named = here.next.map((n) => map.nodes[n]).some((n) => n.named);
   const namedSpotted = named && (rank.namedSense >= 1 || (rank.namedSense > 0 && rng.chance(rank.namedSense)));
+  const planner = L.rank.id !== 'novice';
+  const depth = LEADERSHIP.ev.lookahead[L.rank.id] ?? 0;
   const options = here.next.map((id) => {
     const n = map.nodes[id];
     const type: NodeType | '?' = n.known ? n.type : '?';
+    if (planner) {
+      // Seasoned+ Leaders weigh each room by expected value, as well as their rank lets them read it
+      // misjudgement scales with what's at stake: the party's lives
+      const stake = LEADERSHIP.ev.heroValuePerLevel * (truth.heroLevel ?? 2) * (truth.heroes ?? 3);
+      const score = (roomEV(L, truth, map, id, read.hp, depth, greed) + rank.noise * stake * (rng.next() - 0.5) * 2) / 100;
+      return { node: id, type, score, pref: 0 };
+    }
     // danger always counts a little, and much more as the party wears down
     let score = VALUE[type] * (0.6 + greed) - DANGER[type] * (0.35 + (1 - read.hp) * 1.6) * (1 + 0.1 * truth.tier);
     if (type === 'campfire' && read.hp < 0.6) score += 0.6;
@@ -128,8 +184,13 @@ export function decide(L: LeaderProfile, truth: PartyState, map: FloorMap, at: n
     checks[3] = 'pass';
     if (read.pack >= 0.85 && read.packValue >= 0.7 && greed < 0.8) return result('retreat', 3, 'The pack is full of good things. Bank it.', 0.7);
   }
-  // 5. worth it?
-  if (allowed(4)) {
+  // 5. worth it? Planners compare the best room's expected value with banking now.
+  if (allowed(4) && planner) {
+    checks[4] = 'pass';
+    const best = Math.max(...options.map((o) => o.score)) * 100;
+    const marginEv = LEADERSHIP.ev.doctrineMargin[doc] ?? 0;
+    if (best < marginEv - push * 40) return result('retreat', 4, `Not worth it: the best room ahead is worth ${Math.round(best)} against what we'd risk.`, 0.65);
+  } else if (allowed(4)) {
     checks[4] = 'pass';
     const visible = options.map((o) => DANGER[o.type]);
     const threat = visible.length ? Math.min(...visible) : 0.5;

@@ -1,9 +1,10 @@
 // A whole Delve run (spec 07 + DESIGN §7): fogged floor maps, many battles on generated
 // battlefields, the torch, the loot pack, Leader decisions, Hardcore permadeath, and the
 // Delve Ledger.
-import { CLASSES, ENEMIES, LEADERSHIP, PROGRESSION, RANKS, TIERS } from './data';
+import { CLASSES, ENEMIES, LEADERSHIP, PROGRESSION, RANKS, TIERS, DELVE } from './data';
 import { FIGHT_TYPES, generateFloor, reveal, type FloorMap, type MapNode, type NodeType } from './delve';
 import { buildEncounter } from './encounter';
+import { LOOT } from './loot';
 import { Fight, type FightResult, type HeroSnapshot } from './fight';
 import { decide, leaderProfile, type Decision, type Doctrine } from './leader';
 import { stream } from './rng';
@@ -85,7 +86,6 @@ export interface RunResult {
 
 interface HeroState { snap: RunHero; hp: number; maxHp: number; energy: number; alive: boolean; carried: boolean; dealt: number; healed: number; kills: number }
 
-const LOOT: Partial<Record<NodeType, [number, number]>> = { fight: [1, 10], elite: [2, 16], horde: [3, 14], boss: [4, 30], treasure: [2, 14], event: [1, 8] };
 
 export function runRun(setup: RunSetup): RunResult {
   const tier = TIERS[setup.tier];
@@ -94,7 +94,7 @@ export function runRun(setup: RunSetup): RunResult {
   const leaderRng = stream(setup.seed, 'leader');
   const slots = setup.packSlots ?? 8;
   // the party brings torches for the planned depth (the Market sells them in the full game)
-  let torch = setup.torch ?? 8 + 5 * tier.floorsPerRun;
+  let torch = setup.torch ?? DELVE.torch.base + DELVE.torch.perFloor * tier.floorsPerRun;
   const heroes = new Map<string, HeroState>(setup.party.map((h) => [h.id, { snap: h, hp: -1, maxHp: -1, energy: 0, alive: true, carried: false, dealt: 0, healed: 0, kills: 0 }]));
   let leaderId = setup.leaderId;
   let leaderDied = false;
@@ -259,7 +259,7 @@ export function runRun(setup: RunSetup): RunResult {
       if (node.type === 'boss') break;
       const packValue = pack.reduce((s, v) => s + v, 0) / (slots * 20);
       const home = node.type === 'campfire' ? 0 : roomsHome;
-      const call = decide(L, { hp: partyHp(), fallen: fallen(), torch, pack: pack.length / slots, packValue: Math.min(1, packValue), luck: luck(), tier: tierIndex, floor, roomsHome: home }, map, at, leaderRng, setup.doctrine);
+      const call = decide(L, { hp: partyHp(), fallen: fallen(), torch, pack: pack.length / slots, packValue: Math.min(1, packValue), luck: luck(), tier: tierIndex, floor, roomsHome: home, tierId: setup.tier, packRaw: pack.reduce((s2, v) => s2 + v, 0), heroes: active().length, heroLevel: TIERS[setup.tier].heroLevel }, map, at, leaderRng, setup.doctrine);
       decisions.push(call);
       if (call.namedSpotted) namedSpotted++;
       if (call.decision === 'retreat') call.goodCall = partyHp() < 0.4 || pack.length / slots >= 0.7 || torch <= home + 2 || fallen() > 0;

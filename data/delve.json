@@ -1,0 +1,12 @@
+{
+  "_doc": "Delve run numbers (spec 03/08). Torch fuel is in rooms walked; loot is [items, value per item per floor] by room type.",
+  "torch": { "base": 6, "perFloor": 5 },
+  "loot": {
+    "fight": [1, 10],
+    "elite": [2, 16],
+    "horde": [3, 14],
+    "boss": [4, 30],
+    "treasure": [2, 14],
+    "event": [1, 8]
+  }
+}

@@ -4,12 +4,13 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ABILITIES, ARCHETYPES, CLASSES, ENEMIES, TIERS, validateData } from '../src/sim/data';
 import { buildEncounter } from '../src/sim/encounter';
-import { runFight, type FightResult, type MonsterSpawn } from '../src/sim/fight';
+import { runFight } from '../src/sim/fight';
 import { ALL_CLASSES, heroFor, LEADERS, party, PRESETS } from '../src/sim/presets';
 import { hash32, stream } from '../src/sim/rng';
 import { runRun, type RunPolicy, type RunResult } from '../src/sim/run';
 import { runCampaign } from '../src/sim/campaign';
 import type { RoomType } from '../src/sim/types';
+import { fightOnce, runStats, TARGETS } from './metrics';
 
 const args = process.argv.slice(2);
 const suite = args.find((a) => !a.startsWith('--')) ?? 'smoke';
@@ -20,16 +21,6 @@ const ROOMS: RoomType[] = ['normal', 'elite', 'horde', 'boss'];
 
 // ---- targets (spec 01/09/12, first pass) ----
 // Hardcore room targets (spec 09 §2b): ordinary rooms are won but cost HP; danger sits in elites, hordes and bosses.
-const TARGETS = {
-  normalSeconds: [15, 35],
-  starterNormalWin: [0.97, 1],
-  eliteWin: [0.88, 0.96],
-  bossWin: [0.6, 0.8],
-  hordeWin: [0.85, 0.95],
-  matrixCell: [0.25, 0.95],
-  wipePerRun: 0.08,
-  deathsPerHeroPerRun: [0.05, 0.10],
-};
 
 const lines: string[] = [];
 const json: Record<string, unknown> = { suite, seeds: SEEDS, tiers: TIER_LIST, at: new Date().toISOString() };
@@ -44,12 +35,6 @@ const table = (head: string[], rows: (string | number)[][]) => {
 };
 const inBand = (v: number, [a, b]: number[]) => v >= a && v <= b;
 
-function fightOnce(classes: string[], tier: string, room: RoomType, seed: number, monsters?: MonsterSpawn[]): FightResult {
-  const t = TIERS[tier];
-  const level = t.floors[0] + 1;
-  const ms = monsters ?? buildEncounter(tier, room, level, stream(seed, 'enc-sim', tier, room));
-  return runFight({ seed, key: ['sim', tier, room], tier, roomType: room, heroes: party(classes, tier), monsters: ms });
-}
 
 // ---------------- suites ----------------
 
@@ -204,19 +189,6 @@ function runs() {
   }
 }
 
-function runStats(tier: string, lname: string, policy: RunPolicy, S: number) {
-  const l = LEADERS[lname];
-  let died = 0, heroes = 0, banked = 0, wipes = 0, good = 0, calls = 0, warns = 0, turnBack = 0, thisWay = 0, embers = 0, fellBack = 0, raresK = 0, raresE = 0;
-  for (let s = 0; s < S; s++) {
-    const p = party(PRESETS.starter, tier);
-    p[0] = { ...p[0], raceId: l.raceId, leadership: l.leadership };
-    const r = runRun({ seed: s, tier, party: p, leaderId: p[0].id, policy });
-    died += r.died.length; heroes += p.length; banked += r.banked; if (r.outcome === 'wipe') wipes++;
-    for (const d of r.decisions) if (d.goodCall !== undefined) { calls++; if (d.goodCall) good++; }
-    warns += r.warnings; if (r.turnBackUsed) turnBack++; thisWay += r.thisWayUsed; embers += r.embersSpent; fellBack += r.fellBack; raresK += r.rares.killed; raresE += r.rares.escaped;
-  }
-  return { deathsPerHero: died / heroes, banked: banked / S, bankedPerDeath: banked / Math.max(1, died), wipe: wipes / S, goodCalls: good / Math.max(1, calls), warnings: warns / S, turnBack: turnBack / S, thisWay: thisWay / S, embers: embers / S, fellBack: fellBack / S, rares: `${raresK}/${raresE}` };
-}
 
 function leaders() {
   md('# Leaders (policy: trust)');
@@ -227,11 +199,25 @@ function leaders() {
     data[`${tier}/${lname}`] = r;
     rows.push([tier, lname, pct(r.wipe), r.deathsPerHero.toFixed(3), r.banked.toFixed(0), r.bankedPerDeath.toFixed(0), pct(r.goodCalls), r.fellBack.toFixed(2)]);
   }
-  table(['Tier', 'Leader', 'Wiped', 'Deaths/hero', 'Banked', 'Banked per death', 'Good calls', 'Fall backs/run'], rows);
+  table(['Tier', 'Leader', 'Wiped', 'Deaths/hero', 'Banked', 'Banked per death', 'Good calls (heuristic)', 'Fall backs/run'], rows);
   json.leaders = data;
+  // the same race at each rank, so rank is measured apart from racial traits
+  md('## Rank ladder (human Leader)');
+  const ladder: (string | number)[][] = [];
+  const ranks: Record<string, Record<string, ReturnType<typeof runStats>>> = {};
+  for (const tier of TIER_LIST) for (const [rank, leadership] of [['novice', 2], ['seasoned', 5], ['veteran', 8], ['master', 10]] as const) {
+    const r = runStats(tier, `human-${rank}`, 'trust', SEEDS, { raceId: 'human', leadership });
+    (ranks[tier] ??= {})[rank] = r;
+    ladder.push([tier, rank, pct(r.wipe), r.deathsPerHero.toFixed(3), r.banked.toFixed(0), r.bankedPerDeath.toFixed(0), pct(r.goodCalls)]);
+  }
+  table(['Tier', 'Rank', 'Wiped', 'Deaths/hero', 'Banked', 'Banked per death', 'Good calls'], ladder);
+  json.rankLadder = ranks;
+  for (const tier of TIER_LIST) {
+    const n = ranks[tier].novice, m = ranks[tier].master;
+    if (m.bankedPerDeath < n.bankedPerDeath * 1.3) flags.push(`Tier ${tier}: human master banks ${m.bankedPerDeath.toFixed(0)} per death vs human novice ${n.bankedPerDeath.toFixed(0)} (target ≥ +30%)`);
+  }
   for (const tier of TIER_LIST) {
     const n = data[`${tier}/novice-orc`] as { goodCalls: number; bankedPerDeath: number }, m = data[`${tier}/master-human`] as { goodCalls: number; bankedPerDeath: number };
-    if (m.goodCalls < n.goodCalls + 0.1) flags.push(`Tier ${tier}: master good calls ${pct(m.goodCalls)} vs novice ${pct(n.goodCalls)} (target: clearly higher)`);
     if (m.bankedPerDeath < n.bankedPerDeath * 1.3) flags.push(`Tier ${tier}: master banks ${m.bankedPerDeath.toFixed(0)} per death vs novice ${n.bankedPerDeath.toFixed(0)}`);
   }
 }

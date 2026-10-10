@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Auto Party Story</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600&family=JetBrains+Mono:wght@500&display=swap" />
+  <style>
+    :root { color-scheme: dark; --bg: #07060b; --panel: #1e1b26; --line: #3a3547; --fg: #ece5d4; --muted: #a59d8d; --torch: #f2a640; --blood: #e0594d; --moss: #8cbf6f; --display: "Pixelify Sans", ui-monospace, monospace; --mono: "JetBrains Mono", ui-monospace, monospace; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 14px/1.4 var(--mono); }
+    #stage { position: fixed; inset: 0; }
+    #c { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
+    #ov { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+    .fx-label { position: absolute; transform: translate(-50%, -50%); font: 16px var(--display); text-shadow: 1px 1px 0 #000; white-space: nowrap; }
+    .fx-label.call { color: var(--torch); font-size: 15px; }
+    .fx-label.num { color: var(--fg); } .fx-label.num.crit { color: var(--torch); font-size: 22px; } .fx-label.num.heal { color: var(--moss); }
+    .fx-label.banner { left: 50%; top: 18%; font-size: clamp(22px, 4vw, 42px); color: var(--torch); text-shadow: 2px 2px 0 #000; text-align: center; animation: ban 1.8s ease-out forwards; }
+    .fx-label.banner small { display: block; font-size: 0.45em; color: var(--fg); }
+    @keyframes ban { 0% { opacity: 0; transform: translate(-50%, -50%) scale(1.4); } 12% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
+    #bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px)); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; background: rgba(20, 18, 26, 0.86); border-top: 2px solid #120c08; box-shadow: inset 0 2px 0 #7a5634; }
+    #bar .sp { flex: 1; }
+    button, select { font: 600 12px var(--mono); color: var(--fg); background: #2f241b; border: 1px solid #4a3725; border-radius: 3px; padding: 5px 9px; cursor: pointer; }
+    button[aria-pressed="true"] { background: var(--torch); color: #1a1208; }
+    button:focus-visible, select:focus-visible { outline: 2px solid var(--torch); outline-offset: 2px; }
+    #status { color: var(--muted); font-size: 12px; }
+    #title { position: fixed; top: calc(10px + env(safe-area-inset-top, 0px)); left: 14px; font: 18px var(--display); color: var(--muted); text-shadow: 1px 1px 0 #000; }
+  </style>
+</head>
+<body>
+  <div id="stage"><canvas id="c" aria-label="Isometric voxel battle"></canvas><div id="ov"></div></div>
+  <div id="title">Auto Party Story · battle viewer (M1)</div>
+  <div id="bar">
+    <button id="next" type="button">New fight</button>
+    <select id="tier" aria-label="Tier"><option value="I">Tier I · Crypt Shallows</option><option value="II" selected>Tier II · The Crypt</option><option value="III">Tier III · Fungal Caverns</option></select>
+    <select id="room" aria-label="Room"><option value="normal">Normal room</option><option value="elite" selected>Elite room</option><option value="horde">Horde</option><option value="boss">Boss</option></select>
+    <span id="speed" role="group" aria-label="Speed"></span>
+    <button id="cam" type="button" aria-pressed="true">Battle camera</button>
+    <button id="clarity" type="button" aria-pressed="false" title="Accessibility: damage numbers">Clarity</button>
+    <span class="sp"></span>
+    <span id="status"></span>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

@@ -1,19 +1,129 @@
 {
   "ranks": [
-    { "id": "novice",   "levels": [1, 3],  "checks": 3, "noise": 0.30, "vision": 1, "margin": 0, "hpThreshold": 0.30, "discipline": 0.40, "readsVariance": false, "knowsTypes": false, "namedSense": 0.0 },
-    { "id": "seasoned", "levels": [4, 6],  "checks": 5, "noise": 0.15, "vision": 2, "margin": 1, "hpThreshold": 0.33, "discipline": 0.20, "readsVariance": false, "knowsTypes": true,  "namedSense": 0.5 },
-    { "id": "veteran",  "levels": [7, 8],  "checks": 6, "noise": 0.08, "vision": 2, "margin": 1, "hpThreshold": 0.35, "discipline": 0.08, "readsVariance": true,  "knowsTypes": true,  "namedSense": 1.0 },
-    { "id": "master",   "levels": [9, 10], "checks": 6, "noise": 0.04, "vision": 3, "margin": 2, "hpThreshold": "adaptive", "discipline": 0, "readsVariance": true, "knowsTypes": true, "namedSense": 1.0 }
+    {
+      "id": "novice",
+      "levels": [
+        1,
+        3
+      ],
+      "checks": 3,
+      "noise": 0.3,
+      "vision": 1,
+      "margin": 0,
+      "hpThreshold": 0.3,
+      "discipline": 0.4,
+      "readsVariance": false,
+      "knowsTypes": false,
+      "namedSense": 0.0
+    },
+    {
+      "id": "seasoned",
+      "levels": [
+        4,
+        6
+      ],
+      "checks": 5,
+      "noise": 0.15,
+      "vision": 2,
+      "margin": 1,
+      "hpThreshold": 0.33,
+      "discipline": 0.2,
+      "readsVariance": false,
+      "knowsTypes": true,
+      "namedSense": 0.5
+    },
+    {
+      "id": "veteran",
+      "levels": [
+        7,
+        8
+      ],
+      "checks": 6,
+      "noise": 0.08,
+      "vision": 2,
+      "margin": 1,
+      "hpThreshold": 0.35,
+      "discipline": 0.08,
+      "readsVariance": true,
+      "knowsTypes": true,
+      "namedSense": 1.0
+    },
+    {
+      "id": "master",
+      "levels": [
+        9,
+        10
+      ],
+      "checks": 6,
+      "noise": 0.04,
+      "vision": 3,
+      "margin": 2,
+      "hpThreshold": "adaptive",
+      "discipline": 0,
+      "readsVariance": true,
+      "knowsTypes": true,
+      "namedSense": 1.0
+    }
   ],
   "temperaments": {
-    "steady":     { "greed": 0.5, "pushBias": 0.0,  "streak": "neutral" },
-    "stubborn":   { "greed": 0.5, "pushBias": 0.10, "streak": "ignore" },
-    "farsighted": { "greed": 0.4, "pushBias": 0.0,  "streak": "neutral", "visionBonus": 1 },
-    "cautious":   { "greed": 0.8, "pushBias": -0.10, "streak": "panic" },
-    "rage":       { "greed": 0.5, "pushBias": 0.25, "streak": "charge", "hpFloor": 0.20 },
-    "panic":      { "greed": 0.9, "pushBias": 0.0,  "streak": "panic" }
+    "steady": {
+      "greed": 0.5,
+      "pushBias": 0.0,
+      "streak": "neutral"
+    },
+    "stubborn": {
+      "greed": 0.5,
+      "pushBias": 0.1,
+      "streak": "ignore"
+    },
+    "farsighted": {
+      "greed": 0.4,
+      "pushBias": 0.0,
+      "streak": "neutral",
+      "visionBonus": 1
+    },
+    "cautious": {
+      "greed": 0.8,
+      "pushBias": -0.1,
+      "streak": "panic"
+    },
+    "rage": {
+      "greed": 0.5,
+      "pushBias": 0.25,
+      "streak": "charge",
+      "hpFloor": 0.2
+    },
+    "panic": {
+      "greed": 0.9,
+      "pushBias": 0.0,
+      "streak": "panic"
+    }
   },
   "expectedHpLossPerFight": 0.15,
   "streakThreshold": -0.3,
-  "namedSignPenalty": 0.4
+  "namedSignPenalty": 0.4,
+  "ev": {
+    "_doc": "Expected-value planning for Seasoned+ Leaders (spec 07). Hero value is what a Leader puts on losing one hero for good.",
+    "heroValuePerLevel": 100,
+    "lookahead": {
+      "novice": 0,
+      "seasoned": 0,
+      "veteran": 1,
+      "master": 2
+    },
+    "optimism": {
+      "novice": 0,
+      "seasoned": 0.5,
+      "veteran": 0,
+      "master": 0
+    },
+    "discount": 0.7,
+    "dressing": 0.15,
+    "doctrineMargin": {
+      "balanced": 0,
+      "home": 25,
+      "pack": -10,
+      "depth": -25
+    }
+  }
 }

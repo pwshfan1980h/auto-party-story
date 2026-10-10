@@ -24,6 +24,8 @@ npm test               # unit tests: sim, unit art kit, golden seeds
 npm run sim -- smoke   # quick health check: data, fights, runs, determinism
 npm run sim -- all     # full balance report into reports/
 npm run golden         # regenerate golden-seed snapshots after an intended change
+npm run baselines      # re-measure the room risk table Leaders plan with
+npm run tune           # auto-tuner: proposes data changes into reports/ (--apply to write them)
 npm run dev            # then open /gallery.html to review the unit models
 ```
 
