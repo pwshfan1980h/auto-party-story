@@ -14,7 +14,7 @@ const ROOMS: RoomType[] = ['normal', 'elite', 'horde', 'boss'];
 export type BaselineTable = Record<string, Record<string, { hp: number; win: number; hpCost: number; deaths: number }[]>>;
 
 /** Measure the table for some tiers (all by default). Also used by the auto-tuner to keep Leaders' risk reads current. */
-export function measureBaselines(tiers = Object.keys(TIERS), N = 40): BaselineTable {
+export function measureBaselines(tiers = Object.keys(TIERS), N = 120): BaselineTable {
   const out: BaselineTable = {};
   for (const tier of tiers) {
     out[tier] = {};

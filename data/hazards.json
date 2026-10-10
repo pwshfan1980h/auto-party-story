@@ -1,0 +1,23 @@
+{
+  "_doc": "Battlefield hazards (spec 11). Ground hazards sit on tiles: what standing in them does, how much the pathfinder avoids them, and any gas they give off. Gases move on a coarse air grid: they spread, drift on the room's draft, fade, swirl behind moving units and are blown back by blasts.",
+  "ground": {
+    "spikes":     { "tile": true,  "pathCost": 4, "status": "bleed",  "dur": 2 },
+    "fire":       { "tile": true,  "pathCost": 6, "status": "burn",   "dur": 2, "emits": "smoke",  "rate": 0.35 },
+    "acid":       { "tile": true,  "pathCost": 5, "status": "acid",   "dur": 3 },
+    "spore_vent": { "tile": true,  "pathCost": 3, "emits": "miasma", "rate": 0.5 },
+    "miasma_pit": { "tile": true,  "pathCost": 3, "emits": "miasma", "rate": 0.8 },
+    "fog_bank":   { "tile": false, "seeds": "fog", "amount": 0.9, "spread": 2 }
+  },
+  "gases": {
+    "fog":    { "spread": 0.16, "fade": 0.004, "rangedMiss": 0.3, "color": "0x8a90a8" },
+    "smoke":  { "spread": 0.22, "fade": 0.05,  "rangedMiss": 0.18, "color": "0x3a3438" },
+    "miasma": { "spread": 0.12, "fade": 0.02,  "status": "poison", "statusAt": 0.35, "dur": 2, "color": "0x6a8a3a" }
+  },
+  "air": {
+    "hz": 4,
+    "draft": { "_doc": "tiles per second the room's air drifts, rolled per fight within this range", "min": 0.05, "max": 0.25 },
+    "stir": 0.3,
+    "blast": 0.7,
+    "cap": 1
+  }
+}

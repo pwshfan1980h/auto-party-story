@@ -103,6 +103,7 @@
       "downed"
     ]
   },
+  "acid": { "kind": "debuff", "stacking": "refresh", "mods": { "armor": -0.35 }, "tick": { "dmgType": "poison", "ofCasterSpell": 0.05 } },
   "disarmed": { "kind": "debuff", "stacking": "refresh", "mods": { "damageDealt": -0.6 } },
   "fear": { "kind": "cc", "stacking": "refresh", "flags": ["fear"] },
   "shaken": {
