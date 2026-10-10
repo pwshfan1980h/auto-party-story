@@ -37,19 +37,23 @@ export class Air {
             if (x < 0 || y < 0 || x >= field.w || y >= field.h || !this.open[y * field.w + x]) continue;
             const d = Math.hypot(x - cx, y - cy);
             g[y * field.w + x] = Math.max(g[y * field.w + x], (def.amount ?? 0.8) * Math.max(0, 1 - d / (r + 1)));
+            this.live.add(def.seeds);
           }
         }
       }
     }
   }
 
-  get any(): boolean { return this.emitters.length > 0 || this.gases.some((g) => this.grid[g].some((v) => v > 0.01)); }
+  /** Gases still present anywhere: faded-out ones are skipped entirely (cheap when the air is clear). */
+  private readonly live = new Set<string>();
+  get any(): boolean { return this.emitters.length > 0 || this.live.size > 0; }
 
   /** Advance the air by dt seconds. */
   update(dt: number) {
     const { w, h } = this.field, cap = HAZARDS.air.cap;
     for (const e of this.emitters) { const g = this.grid[e.gas]; g[e.cell] = Math.min(cap, g[e.cell] + e.rate * dt); }
     for (const gas of this.gases) {
+      if (!this.live.has(gas) && !this.emitters.some((e) => e.gas === gas)) continue;
       const def = HAZARDS.gases[gas], g = this.grid[gas], out = this.scratch;
       const k = Math.min(0.24, def.spread * dt * 4);
       // spread: each cell evens out with its open neighbours (closed ones don't take any)
@@ -75,7 +79,9 @@ export class Air {
         if (sy && ty >= 0 && ty < h && this.open[ty * w + x]) { const m = v * fy; g[i] -= m; g[ty * w + x] += m; }
       }
       const fade = Math.pow(1 - def.fade, dt * 4);
-      for (let i = 0; i < g.length; i++) g[i] = Math.min(cap, Math.max(0, g[i] * fade));
+      let max = 0;
+      for (let i = 0; i < g.length; i++) { const v = Math.min(cap, Math.max(0, g[i] * fade)); g[i] = v; if (v > max) max = v; }
+      if (max > 1e-4) this.live.add(gas); else this.live.delete(gas);
     }
   }
 

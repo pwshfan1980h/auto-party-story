@@ -288,23 +288,35 @@ class MinHeap {
 
 /** 1-tile buckets, rebuilt every tick. Used for separation and area queries (no O(n²) loops). */
 export class SpatialHash<T extends { x: number; y: number }> {
-  private cells = new Map<number, T[]>();
-  constructor(private w: number) {}
-  clear() { this.cells.clear(); }
+  // a flat grid of reusable buckets (with a margin), cleared by remembering which were touched:
+  // no maps or arrays are built per tick
+  private readonly W: number;
+  private buckets: T[][] = [];
+  private readonly touched: number[] = [];
+  constructor(w: number, private h = 64) { this.W = w + 4; }
+  private key(x: number, y: number): number {
+    const cx = Math.floor(x) + 2, cy = Math.floor(y) + 2;
+    if (cx < 0 || cy < 0 || cx >= this.W || cy >= this.h + 4) return -1;
+    return cy * this.W + cx;
+  }
+  clear() { for (const k of this.touched) this.buckets[k].length = 0; this.touched.length = 0; }
   insert(item: T) {
-    const k = Math.floor(item.y) * (this.w + 2) + Math.floor(item.x);
-    let b = this.cells.get(k);
-    if (!b) { b = []; this.cells.set(k, b); }
+    const k = this.key(item.x, item.y);
+    if (k < 0) return;
+    let b = this.buckets[k];
+    if (!b) b = this.buckets[k] = [];
+    if (!b.length) this.touched.push(k);
     b.push(item);
   }
-  /** Items within r of (x, y), in insertion order per bucket (deterministic). */
+  /** Items within r of (x, y), in insertion order per bucket (deterministic). Pass `out` to reuse an array. */
   query(x: number, y: number, r: number, out: T[] = []): T[] {
     out.length = 0;
-    const x0 = Math.floor(x - r), x1 = Math.floor(x + r), y0 = Math.floor(y - r), y1 = Math.floor(y + r);
+    const x0 = Math.floor(x - r), x1 = Math.floor(x + r), y0 = Math.floor(y - r), y1 = Math.floor(y + r), rr = r * r;
     for (let cy = y0; cy <= y1; cy++) for (let cx = x0; cx <= x1; cx++) {
-      const b = this.cells.get(cy * (this.w + 2) + cx);
-      if (!b) continue;
-      for (const it of b) if ((it.x - x) ** 2 + (it.y - y) ** 2 <= r * r) out.push(it);
+      const k = this.key(cx, cy);
+      const b = k < 0 ? undefined : this.buckets[k];
+      if (!b || !b.length) continue;
+      for (let i = 0; i < b.length; i++) { const it = b[i], dx = it.x - x, dy = it.y - y; if (dx * dx + dy * dy <= rr) out.push(it); }
     }
     return out;
   }
