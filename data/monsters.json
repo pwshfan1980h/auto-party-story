@@ -10,7 +10,7 @@
       "tags": [
         "beast"
       ],
-      "model": "authored/rat",
+      "model": "species:rat",
       "minion": "rat_swarmling",
       "stats": {
         "maxHp": 30,
@@ -25,7 +25,7 @@
       "tags": [
         "beast"
       ],
-      "model": "authored/bat",
+      "model": "species:bat",
       "minion": "cave_bat",
       "stats": {
         "maxHp": 26,
@@ -41,7 +41,7 @@
       "tags": [
         "undead"
       ],
-      "model": "c/necropolis/skeleton",
+      "model": "species:skeleton",
       "minion": "bone_servant",
       "stats": {
         "maxHp": 70,
@@ -61,7 +61,7 @@
       "tags": [
         "undead"
       ],
-      "model": "c/necropolis/zombie",
+      "model": "species:zombie",
       "minion": "bone_servant",
       "stats": {
         "maxHp": 110,
@@ -81,7 +81,7 @@
       "tags": [
         "undead"
       ],
-      "model": "c/necropolis/ghost",
+      "model": "species:ghost",
       "minion": "wisp",
       "stats": {
         "maxHp": 55,
@@ -103,7 +103,7 @@
       "tags": [
         "humanoid"
       ],
-      "model": "c/castle/monk",
+      "model": "species:cultist",
       "minion": "bone_servant",
       "stats": {
         "maxHp": 65,
@@ -118,7 +118,7 @@
       "tags": [
         "humanoid"
       ],
-      "model": "c/castle/peasant",
+      "model": "species:robber",
       "minion": "rat_swarmling",
       "stats": {
         "maxHp": 60,
@@ -133,7 +133,7 @@
       "tags": [
         "beast"
       ],
-      "model": "c/necropolis/spider",
+      "model": "species:spider",
       "minion": "spiderling",
       "stats": {
         "maxHp": 60,
@@ -151,7 +151,7 @@
       "tags": [
         "humanoid"
       ],
-      "model": "c/stronghold/goblin",
+      "model": "species:goblin",
       "minion": "goblin_runt",
       "stats": {
         "maxHp": 55,
@@ -166,7 +166,7 @@
       "tags": [
         "ooze"
       ],
-      "model": "authored/slime",
+      "model": "species:slime",
       "minion": "slimeling",
       "stats": {
         "maxHp": 90,

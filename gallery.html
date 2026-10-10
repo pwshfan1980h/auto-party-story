@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Unit Gallery</title>
+  <style>
+    :root { color-scheme: dark; --bg: #14121a; --fg: #ece5d4; --muted: #a59d8d; --line: #3a3547; --accent: #f2a640; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, sans-serif; }
+    header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+    header b { margin-right: 8px; }
+    button, select { font: 600 12px ui-monospace, monospace; color: var(--fg); background: #292533; border: 1px solid var(--line); border-radius: 4px; padding: 5px 9px; cursor: pointer; }
+    button[aria-pressed="true"] { background: var(--accent); color: #1a1208; }
+    canvas { display: block; width: 100%; height: calc(100vh - 48px); image-rendering: pixelated; }
+  </style>
+</head>
+<body>
+  <header>
+    <b>Unit gallery</b>
+    <span id="anims"></span>
+    <select id="set" aria-label="Which units">
+      <option value="classes">Classes (one race each)</option>
+      <option value="races">Races (Fighter)</option>
+      <option value="party">A party, rolled</option>
+      <option value="species">Enemies (one per species)</option>
+      <option value="enemies">Enemies (all)</option>
+    </select>
+    <button id="reroll" type="button">Re-roll looks</button>
+    <button id="spin" type="button" aria-pressed="true">Turntable</button>
+  </header>
+  <canvas id="c"></canvas>
+  <script type="module" src="/src/gallery.ts"></script>
+</body>
+</html>

@@ -21,7 +21,8 @@
 
 ## Art and audio
 - Style: everything is voxel at 32px-art fidelity (16px HAS sprites upscaled 2× with Scale2x, then voxelized; a unit is 32 voxels tall), seen through an isometric orthographic camera. Flat shading, vertex colours, half-resolution render upscaled with nearest filtering.
-- Source art is the Heroic Asset Series in `~/Projects/game-asset-cache`, converted to voxels by `npm run voxelize`. **Read the cache's `AGENTS.md` and the pack's guide first.** Never edit the cache originals.
+- **Unit models (heroes, monsters) are original**, built from a voxel parts kit in `src/art/` and animated procedurally. Heroic Asset Series units are inspiration only; never convert or copy them.
+- Non-unit art (buildings, terrain, props, UI) comes from the Heroic Asset Series in `~/Projects/game-asset-cache`, converted to voxels by `npm run voxelize`. **Read the cache's `AGENTS.md` and the pack's guide first.** Never edit the cache originals.
 - **The Heroic Asset Series is paid art. Never commit it, or voxel models made from it, to this public repo.** It lives in a private assets repo, cloned locally into gitignored `assets-private/` and pulled into the Pages build with a deploy key. Credit Aleksandr Makarov. The game must still run without it, using placeholder cubes.
 - UI is diegetic by default: show state in the world (posture, wounds, effects, lighting), not with health bars or floating numbers. Any 2D UI that's needed uses the in-world pixel style. Build this in from the start.
 - CC0 assets (Kenney sounds and particles) can be copied into `public/assets/`. Keep each pack's license file with the copy and add a line to `CREDITS.md`.
