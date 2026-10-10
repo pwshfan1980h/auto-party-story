@@ -1,0 +1,4 @@
+{
+  "crypt":  { "erosion": 0.45, "coverTypes": ["pillar", "broken_pillar", "coffin"], "hazards": ["spikes"], "plateauChance": 0.2 },
+  "fungal": { "erosion": 0.5,  "coverTypes": ["mushroom_stalk", "crystal_cluster", "rock"], "hazards": ["spore_vent", "spikes"], "plateauChance": 0.3 }
+}

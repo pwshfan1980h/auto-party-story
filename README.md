@@ -15,3 +15,14 @@ TypeScript, Three.js (orthographic isometric camera), Vite. It's a static browse
 ## Credits
 
 Art and sound come from CC0 packs. `CREDITS.md` will list each one as it's added.
+
+## Development
+
+```sh
+npm install
+npm test            # unit tests for the headless sim
+npm run sim -- smoke   # quick health check: data, fights, runs, determinism
+npm run sim -- all     # full balance report into reports/
+```
+
+The combat and run simulation lives in `src/sim/` and has no rendering dependencies. Balance numbers live in `data/`.

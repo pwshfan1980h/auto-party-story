@@ -1,0 +1,596 @@
+{
+  "scale": {
+    "hp": 2.8,
+    "power": 1.4,
+    "_doc": "Global tuning knobs (spec 09 auto-tuner). Multiply every monster."
+  },
+  "species": {
+    "rat": {
+      "family": "vermin",
+      "tags": [
+        "beast"
+      ],
+      "model": "authored/rat",
+      "minion": "rat_swarmling",
+      "stats": {
+        "maxHp": 30,
+        "power": 6,
+        "spell": 2,
+        "armor": 0,
+        "move": 1.9
+      }
+    },
+    "bat": {
+      "family": "bats",
+      "tags": [
+        "beast"
+      ],
+      "model": "authored/bat",
+      "minion": "cave_bat",
+      "stats": {
+        "maxHp": 26,
+        "power": 5,
+        "spell": 2,
+        "armor": 0,
+        "move": 2.4,
+        "evasion": 0.15
+      }
+    },
+    "skeleton": {
+      "family": "skeletons",
+      "tags": [
+        "undead"
+      ],
+      "model": "c/necropolis/skeleton",
+      "minion": "bone_servant",
+      "stats": {
+        "maxHp": 70,
+        "power": 10,
+        "spell": 6,
+        "armor": 8,
+        "move": 1.4
+      },
+      "typeMods": {
+        "pierce": 0.6,
+        "blunt": 1.3,
+        "holy": 1.5
+      }
+    },
+    "zombie": {
+      "family": "zombies",
+      "tags": [
+        "undead"
+      ],
+      "model": "c/necropolis/zombie",
+      "minion": "bone_servant",
+      "stats": {
+        "maxHp": 110,
+        "power": 11,
+        "spell": 3,
+        "armor": 4,
+        "move": 1.0
+      },
+      "typeMods": {
+        "fire": 1.3,
+        "holy": 1.4,
+        "poison": 0.5
+      }
+    },
+    "ghost": {
+      "family": "spirits",
+      "tags": [
+        "undead"
+      ],
+      "model": "c/necropolis/ghost",
+      "minion": "wisp",
+      "stats": {
+        "maxHp": 55,
+        "power": 3,
+        "spell": 10,
+        "armor": 0,
+        "move": 1.6,
+        "evasion": 0.1
+      },
+      "typeMods": {
+        "slash": 0.7,
+        "pierce": 0.7,
+        "blunt": 0.7,
+        "holy": 1.6
+      }
+    },
+    "cultist": {
+      "family": "cultists",
+      "tags": [
+        "humanoid"
+      ],
+      "model": "c/castle/monk",
+      "minion": "bone_servant",
+      "stats": {
+        "maxHp": 65,
+        "power": 7,
+        "spell": 9,
+        "armor": 4,
+        "move": 1.4
+      }
+    },
+    "robber": {
+      "family": "robbers",
+      "tags": [
+        "humanoid"
+      ],
+      "model": "c/castle/peasant",
+      "minion": "rat_swarmling",
+      "stats": {
+        "maxHp": 60,
+        "power": 9,
+        "spell": 2,
+        "armor": 5,
+        "move": 1.8
+      }
+    },
+    "spider": {
+      "family": "spiders",
+      "tags": [
+        "beast"
+      ],
+      "model": "c/necropolis/spider",
+      "minion": "spiderling",
+      "stats": {
+        "maxHp": 60,
+        "power": 10,
+        "spell": 5,
+        "armor": 3,
+        "move": 1.8
+      },
+      "typeMods": {
+        "fire": 1.3
+      }
+    },
+    "goblin": {
+      "family": "goblins",
+      "tags": [
+        "humanoid"
+      ],
+      "model": "c/stronghold/goblin",
+      "minion": "goblin_runt",
+      "stats": {
+        "maxHp": 55,
+        "power": 10,
+        "spell": 7,
+        "armor": 4,
+        "move": 1.8
+      }
+    },
+    "slime": {
+      "family": "slimes",
+      "tags": [
+        "ooze"
+      ],
+      "model": "authored/slime",
+      "minion": "slimeling",
+      "stats": {
+        "maxHp": 90,
+        "power": 9,
+        "spell": 4,
+        "armor": 0,
+        "move": 1.0
+      },
+      "typeMods": {
+        "slash": 0.8,
+        "pierce": 0.6,
+        "fire": 1.3
+      }
+    }
+  },
+  "archetypes": {
+    "grunt": {
+      "mult": {
+        "maxHp": 1.0,
+        "power": 1.0
+      },
+      "basic": "m_slash",
+      "rules": "m_grunt"
+    },
+    "brute": {
+      "mult": {
+        "maxHp": 1.6,
+        "power": 1.3,
+        "move": 0.85
+      },
+      "basic": "m_smash",
+      "skills": [
+        "m_slam"
+      ],
+      "rules": "m_brute",
+      "radius": 0.38
+    },
+    "skirmisher": {
+      "mult": {
+        "maxHp": 0.8,
+        "power": 1.0,
+        "move": 1.25
+      },
+      "basic": "m_bite",
+      "skills": [
+        "m_lunge"
+      ],
+      "rules": "m_skirmisher"
+    },
+    "shooter": {
+      "mult": {
+        "maxHp": 0.8,
+        "power": 0.9
+      },
+      "basic": "m_arrow",
+      "rules": "m_shooter"
+    },
+    "caster": {
+      "mult": {
+        "maxHp": 0.75,
+        "spell": 1.15
+      },
+      "basic": "m_bolt",
+      "skills": [
+        "m_hex"
+      ],
+      "rules": "m_caster"
+    },
+    "mender": {
+      "mult": {
+        "maxHp": 0.9,
+        "spell": 1.0
+      },
+      "basic": "m_bolt",
+      "skills": [
+        "m_mend"
+      ],
+      "rules": "m_mender"
+    },
+    "summoner": {
+      "mult": {
+        "maxHp": 0.8,
+        "spell": 1.0
+      },
+      "basic": "m_bolt",
+      "skills": [
+        "m_summon"
+      ],
+      "rules": "m_summoner"
+    },
+    "guardian": {
+      "mult": {
+        "maxHp": 1.5,
+        "power": 0.9
+      },
+      "add": {
+        "armor": 6
+      },
+      "basic": "m_slash",
+      "skills": [
+        "m_taunt"
+      ],
+      "rules": "m_guardian",
+      "radius": 0.35
+    },
+    "swarm": {
+      "mult": {
+        "maxHp": 0.5,
+        "power": 0.6,
+        "move": 1.1
+      },
+      "basic": "m_bite",
+      "rules": "m_grunt",
+      "radius": 0.22
+    },
+    "bomber": {
+      "mult": {
+        "maxHp": 0.5,
+        "power": 1.0,
+        "move": 1.15
+      },
+      "basic": "m_explode",
+      "rules": "m_grunt"
+    },
+    "wailer": {
+      "mult": {
+        "maxHp": 0.9,
+        "spell": 1.0
+      },
+      "basic": "m_bolt",
+      "skills": [
+        "m_wail"
+      ],
+      "rules": "m_caster"
+    }
+  },
+  "ranks": {
+    "minion": {
+      "hp": 0.35,
+      "power": 0.6,
+      "xp": 0.2
+    },
+    "normal": {
+      "hp": 1,
+      "power": 1,
+      "xp": 1
+    },
+    "veteran": {
+      "hp": 1.4,
+      "power": 1.15,
+      "xp": 1.5
+    },
+    "elite": {
+      "hp": 2.2,
+      "power": 1.45,
+      "xp": 3,
+      "radius": 1.15
+    },
+    "champion": {
+      "hp": 4,
+      "power": 1.4,
+      "xp": 8,
+      "radius": 1.25
+    },
+    "boss": {
+      "hp": 10,
+      "power": 2.2,
+      "xp": 40,
+      "radius": 1.8
+    }
+  },
+  "enemies": {
+    "sewer_rat": {
+      "name": "Sewer Rat",
+      "species": "rat",
+      "archetype": "grunt"
+    },
+    "rat_swarmling": {
+      "name": "Rat Swarm",
+      "species": "rat",
+      "archetype": "swarm",
+      "rank": "minion"
+    },
+    "giant_rat": {
+      "name": "Giant Rat",
+      "species": "rat",
+      "archetype": "brute"
+    },
+    "ratling_slinger": {
+      "name": "Ratling Slinger",
+      "species": "rat",
+      "archetype": "shooter"
+    },
+    "rat_shaman": {
+      "name": "Rat Shaman",
+      "species": "rat",
+      "archetype": "mender"
+    },
+    "cave_bat": {
+      "name": "Cave Bat",
+      "species": "bat",
+      "archetype": "swarm",
+      "rank": "minion"
+    },
+    "screech_bat": {
+      "name": "Screech Bat",
+      "species": "bat",
+      "archetype": "skirmisher"
+    },
+    "shambling_bones": {
+      "name": "Shambling Bones",
+      "species": "skeleton",
+      "archetype": "grunt"
+    },
+    "bone_archer": {
+      "name": "Bone Archer",
+      "species": "skeleton",
+      "archetype": "shooter"
+    },
+    "skull_pile": {
+      "name": "Skull Pile",
+      "species": "skeleton",
+      "archetype": "bomber"
+    },
+    "grave_robber": {
+      "name": "Grave Robber",
+      "species": "robber",
+      "archetype": "skirmisher"
+    },
+    "gravedigger_brute": {
+      "name": "Gravedigger Brute",
+      "species": "robber",
+      "archetype": "brute"
+    },
+    "robber_captain": {
+      "name": "Robber Captain",
+      "species": "robber",
+      "archetype": "guardian"
+    },
+    "skeleton_warrior": {
+      "name": "Skeleton Warrior",
+      "species": "skeleton",
+      "archetype": "grunt"
+    },
+    "skeleton_archer": {
+      "name": "Skeleton Archer",
+      "species": "skeleton",
+      "archetype": "shooter"
+    },
+    "bone_knight": {
+      "name": "Bone Knight",
+      "species": "skeleton",
+      "archetype": "guardian"
+    },
+    "skeleton_mage": {
+      "name": "Skeleton Mage",
+      "species": "skeleton",
+      "archetype": "caster"
+    },
+    "bone_servant": {
+      "name": "Bone Servant",
+      "species": "skeleton",
+      "archetype": "grunt",
+      "rank": "minion"
+    },
+    "zombie": {
+      "name": "Zombie",
+      "species": "zombie",
+      "archetype": "grunt"
+    },
+    "bloated_corpse": {
+      "name": "Bloated Corpse",
+      "species": "zombie",
+      "archetype": "bomber"
+    },
+    "ghoul": {
+      "name": "Ghoul",
+      "species": "zombie",
+      "archetype": "skirmisher"
+    },
+    "grave_hulk": {
+      "name": "Grave Hulk",
+      "species": "zombie",
+      "archetype": "brute"
+    },
+    "wisp": {
+      "name": "Wisp",
+      "species": "ghost",
+      "archetype": "swarm",
+      "rank": "minion"
+    },
+    "ghost": {
+      "name": "Ghost",
+      "species": "ghost",
+      "archetype": "caster"
+    },
+    "wailing_spirit": {
+      "name": "Wailing Spirit",
+      "species": "ghost",
+      "archetype": "wailer"
+    },
+    "cult_initiate": {
+      "name": "Cult Initiate",
+      "species": "cultist",
+      "archetype": "grunt"
+    },
+    "cult_priest": {
+      "name": "Cult Priest",
+      "species": "cultist",
+      "archetype": "mender"
+    },
+    "bone_binder": {
+      "name": "Bone Binder",
+      "species": "cultist",
+      "archetype": "summoner"
+    },
+    "spiderling": {
+      "name": "Spiderling",
+      "species": "spider",
+      "archetype": "swarm",
+      "rank": "minion"
+    },
+    "cave_spider": {
+      "name": "Cave Spider",
+      "species": "spider",
+      "archetype": "grunt"
+    },
+    "venom_spitter": {
+      "name": "Venom Spitter",
+      "species": "spider",
+      "archetype": "shooter"
+    },
+    "brood_guard": {
+      "name": "Brood Guard",
+      "species": "spider",
+      "archetype": "guardian"
+    },
+    "goblin_runt": {
+      "name": "Goblin Runt",
+      "species": "goblin",
+      "archetype": "swarm",
+      "rank": "minion"
+    },
+    "goblin_cutter": {
+      "name": "Goblin Cutter",
+      "species": "goblin",
+      "archetype": "grunt"
+    },
+    "goblin_archer": {
+      "name": "Goblin Archer",
+      "species": "goblin",
+      "archetype": "shooter"
+    },
+    "goblin_shaman": {
+      "name": "Goblin Shaman",
+      "species": "goblin",
+      "archetype": "mender"
+    },
+    "goblin_sapper": {
+      "name": "Goblin Sapper",
+      "species": "goblin",
+      "archetype": "bomber"
+    },
+    "slimeling": {
+      "name": "Slimeling",
+      "species": "slime",
+      "archetype": "swarm",
+      "rank": "minion"
+    },
+    "green_slime": {
+      "name": "Green Slime",
+      "species": "slime",
+      "archetype": "grunt"
+    },
+    "acid_slime": {
+      "name": "Acid Slime",
+      "species": "slime",
+      "archetype": "brute"
+    },
+    "rat_king": {
+      "name": "The Rat King",
+      "species": "rat",
+      "archetype": "brute",
+      "rank": "boss",
+      "mult": {
+        "hp": 1.4,
+        "power": 1.0
+      }
+    },
+    "bone_warden": {
+      "name": "Bone Warden",
+      "species": "skeleton",
+      "archetype": "guardian",
+      "rank": "boss",
+      "mult": {
+        "hp": 1.0,
+        "power": 0.95
+      }
+    },
+    "broodmother": {
+      "name": "Broodmother",
+      "species": "spider",
+      "archetype": "summoner",
+      "rank": "boss",
+      "mult": {
+        "hp": 2.6,
+        "power": 2.0
+      }
+    },
+    "old_whiskers": {
+      "name": "Old Whiskers",
+      "species": "rat",
+      "archetype": "brute",
+      "rank": "champion",
+      "named": true,
+      "levelBonus": 6
+    },
+    "grisla": {
+      "name": "Grisla the Bone-Mother",
+      "species": "skeleton",
+      "archetype": "summoner",
+      "rank": "champion",
+      "named": true,
+      "levelBonus": 8
+    }
+  }
+}
