@@ -228,6 +228,18 @@
       "min": 0.03,
       "max": 0.2,
       "step": 0.03
+    },
+    {
+      "path": "leadership.ev.heroValueFloor",
+      "min": 0,
+      "max": 600,
+      "step": 100
+    },
+    {
+      "path": "leadership.ev.wipeAversion",
+      "min": 0,
+      "max": 4,
+      "step": 0.5
     }
   ]
 }

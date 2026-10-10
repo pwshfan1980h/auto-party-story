@@ -69,6 +69,9 @@ for (const t of TIER_LIST) {
   BANDS.push({ key: `${t} boss win`, band: TARGETS.bossWin as [number, number], scale: 0.08, weight: 1 });
   BANDS.push({ key: `${t} seasoned deaths/hero`, band: TARGETS.deathsPerHeroPerRun as [number, number], scale: 0.03, weight: 1.5 });
   BANDS.push({ key: `${t} seasoned wipe`, band: [0, TARGETS.wipePerRun], scale: 0.04, weight: 1 });
+  // the best Leaders are bold but not reckless, and nobody experienced turns home after two rooms
+  BANDS.push({ key: `${t} master wipe`, band: [0, 0.08], scale: 0.04, weight: 1.5 });
+  BANDS.push({ key: `${t} seasoned rooms`, band: [4, 99], scale: 1, weight: 1 });
   // a new player's novice Leader should lose some runs, not most of them
   BANDS.push({ key: `${t} novice wipe`, band: [0, 0.3], scale: 0.05, weight: 1 });
   // rank must pay: Master banks at least 10% more than Seasoned, and novices die at least twice as often as Masters
@@ -92,6 +95,8 @@ function measure(seeds: number, from = 0, tiers = TIER_LIST): Metrics {
     m[`${t} seasoned deaths/hero`] = ladder.seasoned.deathsPerHero;
     m[`${t} seasoned wipe`] = ladder.seasoned.wipe;
     m[`${t} novice wipe`] = ladder.novice.wipe;
+    m[`${t} master wipe`] = ladder.master.wipe;
+    m[`${t} seasoned rooms`] = ladder.seasoned.rooms;
     m[`${t} master/seasoned banked`] = ladder.master.banked / Math.max(1, ladder.seasoned.banked);
     m[`${t} master/novice banked`] = ladder.master.banked / Math.max(1, ladder.novice.banked);
     m[`${t} novice/master deaths`] = ladder.novice.deathsPerHero / Math.max(0.005, ladder.master.deathsPerHero);

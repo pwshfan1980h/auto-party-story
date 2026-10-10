@@ -1,6 +1,6 @@
 // The Leader's run decisions (spec 07): perception with noise, the ordered decision tree,
 // route choice on the fogged map, and everything the Council view needs to show the call.
-import { BASELINES, LEADERSHIP, RACES, type BaselineRow, type LeaderRankDef, type TemperamentDef } from './data';
+import { BASELINES, LEADERSHIP, RACES, TIERS, type BaselineRow, type LeaderRankDef, type TemperamentDef } from './data';
 import { lootValue } from './loot';
 import type { FloorMap, NodeType } from './delve';
 import type { Rng } from './rng';
@@ -46,6 +46,12 @@ export interface PartyState {
 
 const FIGHT_ROOM: Partial<Record<NodeType | '?', string>> = { fight: 'normal', elite: 'elite', horde: 'horde', boss: 'boss', '?': 'normal' };
 
+/** What a Leader puts on losing one hero for good: their training, with a floor for the cost of replacing them. */
+function heroValueOf(s: PartyState): number {
+  const ev = LEADERSHIP.ev;
+  return Math.max(ev.heroValueFloor, ev.heroValuePerLevel * (s.heroLevel ?? 2));
+}
+
 /** Baseline for a room at a party HP level, interpolated between measured rows. */
 function baseline(tier: string, type: NodeType | '?', hp: number): BaselineRow {
   const room = FIGHT_ROOM[type];
@@ -71,14 +77,18 @@ function roomEV(L: LeaderProfile, s: PartyState, map: FloorMap, id: number, hp: 
   let b = baseline(s.tierId ?? 'I', type, hp);
   const opt = ev.optimism[L.rank.id] ?? 0;
   if (opt) b = { ...b, win: b.win + (1 - b.win) * opt, deaths: b.deaths * (1 - opt) };
-  // the table is measured at the tier's hero level; each level of advantage shrinks the risk
-  const gap = Math.max(-3, Math.min(8, (s.partyLevel ?? s.heroLevel ?? 2) - (s.heroLevel ?? 2)));
+  // the table is measured at the tier's hero level against monsters from its first floor: each level of
+  // advantage shrinks the risk, and each floor deeper (monsters a level stronger) grows it
+  const t = TIERS[s.tierId ?? 'I'];
+  const deeper = t ? Math.max(0, s.floor - (t.floors[0] + 1)) : 0;
+  const gap = Math.max(-6, Math.min(8, (s.partyLevel ?? s.heroLevel ?? 2) - (s.heroLevel ?? 2) - deeper));
   if (gap) { const k = Math.pow(ev.levelFactor, gap); b = { ...b, win: 1 - (1 - b.win) * k, deaths: Math.min(1, b.deaths * k) }; }
-  const heroValue = ev.heroValuePerLevel * (s.heroLevel ?? 2);
+  const heroValue = heroValueOf(s);
   const heroes = s.heroes ?? 3;
   // with a full pack, new loot is only worth the upgrades it brings
   const gain = lootValue(type, s.floor) * (0.6 + greed) * b.win * (s.pack >= 1 ? ev.fullPackShare : 1);
-  const loss = (1 - b.win) * (s.packRaw ?? 0) + b.deaths * heroes * heroValue + (n.named && n.seen ? heroValue * heroes * 0.5 : 0);
+  // losing the fight can end the whole party: experienced Leaders weigh that beyond its average cost
+  const loss = (1 - b.win) * ((s.packRaw ?? 0) + ev.wipeAversion * heroes * heroValue) + b.deaths * heroes * heroValue + (n.named && n.seen ? heroValue * heroes * 0.5 : 0);
   let value = gain - loss;
   if (type === 'campfire') value += (1 - hp) * heroValue * 0.3;
   if (depth > 0 && n.known) {
@@ -140,7 +150,7 @@ export function decide(L: LeaderProfile, truth: PartyState, map: FloorMap, at: n
     if (planner) {
       // Seasoned+ Leaders weigh each room by expected value, as well as their rank lets them read it
       // misjudgement scales with what's at stake: the party's lives
-      const stake = LEADERSHIP.ev.heroValuePerLevel * (truth.heroLevel ?? 2) * (truth.heroes ?? 3);
+      const stake = heroValueOf(truth) * (truth.heroes ?? 3);
       const score = (roomEV(L, truth, map, id, read.hp, depth, greed) + rank.noise * stake * (rng.next() - 0.5) * 2) / 100;
       return { node: id, type, score, pref: 0 };
     }
@@ -195,7 +205,8 @@ export function decide(L: LeaderProfile, truth: PartyState, map: FloorMap, at: n
   if (allowed(4) && planner) {
     checks[4] = 'pass';
     const best = Math.max(...options.map((o) => o.score)) * 100;
-    const marginEv = LEADERSHIP.ev.doctrineMargin[doc] ?? 0;
+    // a standing order to push accepts real risk, measured in heroes rather than coin
+    const marginEv = (LEADERSHIP.ev.doctrineMargin[doc] ?? 0) - (LEADERSHIP.ev.doctrineHeroRisk[doc] ?? 0) * heroValueOf(truth);
     if (best < marginEv - push * 40) return result('retreat', 4, `Not worth it: the best room ahead is worth ${Math.round(best)} against what we'd risk.`, 0.65);
   } else if (allowed(4)) {
     checks[4] = 'pass';
