@@ -109,3 +109,20 @@ describe('the Delve', () => {
     expect(TIERS.II.floorsPerRun).toBeGreaterThan(0);
   });
 });
+
+describe('waystones', () => {
+  it('a run started at a waystone never visits the floors above it', () => {
+    const p = party(PRESETS.starter, 'II');
+    const start = TIERS.II.floors[1] - 1;
+    for (let seed = 0; seed < 5; seed++) {
+      const r = runRun({ seed, tier: 'II', party: p, leaderId: p[0].id, startFloor: start });
+      expect(r.ledger.every((e) => e.floor >= start)).toBe(true);
+      expect(r.floorsReached).toBeGreaterThanOrEqual(start);
+    }
+  });
+  it('a waystone outside the tier is clamped to it', () => {
+    const p = party(PRESETS.starter, 'I');
+    const r = runRun({ seed: 1, tier: 'I', party: p, leaderId: p[0].id, startFloor: 99 });
+    expect(r.ledger.every((e) => e.floor === TIERS.I.floors[1])).toBe(true);
+  });
+});

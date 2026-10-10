@@ -155,7 +155,7 @@ export const BASELINES = (baselinesJson as unknown as { table: Record<string, Re
 
 export const DELVE = delveJson as unknown as { torch: { base: number; perFloor: number }; loot: Record<string, [number, number]> };
 
-export const PROGRESSION = progressionJson as { killXpPerLevel: number; roomClearBonus: number; xpCurve: { base: number; exponent: number }; overLevelGap: number; overLevelMult: number; underLevelMult: number; maxLevel: number };
+export const PROGRESSION = progressionJson as { bot: { tierSlack: number; pushAt: number }; killXpPerLevel: number; roomClearBonus: number; xpCurve: { base: number; exponent: number }; overLevelGap: number; overLevelMult: number; underLevelMult: number; maxLevel: number };
 
 export const RULES = Object.fromEntries(
   Object.entries(rulesJson).filter(([k]) => !k.startsWith('_')),

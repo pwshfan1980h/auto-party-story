@@ -12,6 +12,10 @@ export interface CampaignOptions {
   policy?: RunPolicy;
   /** The roster the Inn offers at the start. */
   start?: string[];
+  /** Simulated player: play a tier once the roster is within this many levels of it. */
+  tierSlack?: number;
+  /** Simulated player: order a push for the boss once the party is this many levels over its newest tier. */
+  pushAt?: number;
 }
 
 interface RosterHero { hero: RunHero; xp: number; benched: number; runsLed: number; alive: boolean; born: number }
@@ -30,6 +34,8 @@ export interface CampaignResult {
   longestStall: number;
   /** [hours, average party level, tier index] after each run. */
   curve: [number, number, number][];
+  /** One row per run: tier played, party's average level, outcome, heroes lost, floors reached. */
+  log: { tier: string; level: number; outcome: string; died: number; floors: number }[];
   /** Runs needed after a wipe until a party at the same tier won a fight again (−1: never). */
   recoveryRuns: number[];
 }
@@ -39,7 +45,8 @@ const CLASS_RACE = ['human', 'dwarf', 'elf', 'halfling'];
 const ZONE: Record<string, Zone> = { fighter: 'front', knight: 'front', berserker: 'front', rogue: 'middle', assassin: 'middle', bard: 'middle', cleric: 'back', ranger: 'back', sniper: 'back', mage: 'back', alchemist: 'back', necromancer: 'back' };
 export const xpToNext = (level: number) => Math.round(PROGRESSION.xpCurve.base * Math.pow(level, PROGRESSION.xpCurve.exponent));
 
-export function runCampaign(opt: CampaignOptions): CampaignResult {
+export function runCampaign(options: CampaignOptions): CampaignResult {
+  const opt = { tierSlack: PROGRESSION.bot.tierSlack, pushAt: PROGRESSION.bot.pushAt, ...options };
   const rng = stream(opt.seed, 'campaign');
   const maxRuns = opt.maxRuns ?? 120;
   let seq = 0;
@@ -54,6 +61,9 @@ export function runCampaign(opt: CampaignOptions): CampaignResult {
   const milestones: Record<string, number> = { I: 0 };
   const outcomes = { cleared: 0, retreat: 0, wipe: 0 };
   const curve: [number, number, number][] = [];
+  const log: CampaignResult['log'] = [];
+  // deepest floor reached in each tier: a waystone the next push can start from
+  const waystone: Record<string, number> = {};
   const recoveryRuns: number[] = [];
   let sinceWipe = -1;
   let run = 0;
@@ -66,10 +76,10 @@ export function runCampaign(opt: CampaignOptions): CampaignResult {
       const h = hire(needs, Math.max(1, band - 2), hours);
       roster.push(h); living.push(h); recruits++;
     }
-    // pick the tier: the highest unlocked one the roster is ready for
+    // pick the tier: the highest unlocked one the roster is ready for (at its hero level)
     const avg = (hs: RosterHero[]) => hs.reduce((s, h) => s + h.hero.level, 0) / Math.max(1, hs.length);
     let ti = unlocked;
-    while (ti > 0 && avg(living.filter((h) => !h.benched)) < TIERS[TIER_IDS[ti]].heroLevel - 1) ti--;
+    while (ti > 0 && avg(living.filter((h) => !h.benched)) < TIERS[TIER_IDS[ti]].heroLevel - opt.tierSlack) ti--;
     const tier = TIER_IDS[ti];
     const size = TIERS[tier].partySize;
     // a balanced party: a healer if there is one, then the strongest of the rest
@@ -81,8 +91,12 @@ export function runCampaign(opt: CampaignOptions): CampaignResult {
     if (!party.length) { for (const h of living) h.benched--; continue; }
     const leader = party.reduce((a, b) => (b.hero.leadership > a.hero.leadership ? b : a));
     const gear = TIERS[tier].gearScore;
-    const r = runRun({ seed: opt.seed * 1000 + run, tier, party: party.map((h) => ({ ...h.hero, gearScore: gear })), leaderId: leader.hero.id, policy: opt.policy });
+    // once the party outlevels its newest tier, the player orders a push for the boss
+    const doctrine = ti === unlocked && avg(party) >= TIERS[tier].heroLevel + opt.pushAt ? 'depth' : 'balanced';
+    const r = runRun({ seed: opt.seed * 1000 + run, tier, party: party.map((h) => ({ ...h.hero, gearScore: gear })), leaderId: leader.hero.id, policy: opt.policy, doctrine, startFloor: doctrine === 'depth' ? waystone[tier] : undefined });
     outcomes[r.outcome]++;
+    if (r.outcome !== 'wipe') waystone[tier] = Math.max(waystone[tier] ?? 0, r.floorsReached);
+    log.push({ tier, level: +avg(party).toFixed(1), outcome: r.outcome, died: r.died.length, floors: r.floorsReached });
     hours += (r.fightSeconds / 60 + r.rooms * 0.4 + 2) / 60;
     heroRuns += party.length;
     // XP, with the over-level penalty and catch-up bonus (spec 08)
@@ -116,6 +130,6 @@ export function runCampaign(opt: CampaignOptions): CampaignResult {
   }
   return {
     runs: run + 1, hours: +hours.toFixed(2), tierUnlocked: TIER_IDS[unlocked], milestones, outcomes,
-    deathsPerHeroRun: deaths / Math.max(1, heroRuns), heroesLost: lost, recruits, longestStall, curve, recoveryRuns,
+    deathsPerHeroRun: deaths / Math.max(1, heroRuns), heroesLost: lost, recruits, longestStall, curve, log, recoveryRuns,
   };
 }

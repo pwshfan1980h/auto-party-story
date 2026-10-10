@@ -6,5 +6,6 @@
   "overLevelGap": 5,
   "overLevelMult": 0.5,
   "underLevelMult": 1.25,
-  "maxLevel": 30
+  "maxLevel": 30,
+  "bot": { "_doc": "How the simulated player in the campaign suite picks tiers and orders boss pushes.", "tierSlack": 0, "pushAt": 1 }
 }
