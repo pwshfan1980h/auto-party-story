@@ -5,7 +5,7 @@ import type { Doctrine } from '../sim/leader';
 import { hash32 } from '../sim/rng';
 import { applyRun, type RunAftermath } from '../sim/roster';
 import { delveSteps, runRun, type DelveAnswer, type DelveRequest, type RunResult, type RunSetup } from '../sim/run';
-import { hireCost, refreshBoard, saveGame, TIER_IDS, type GameState } from './state';
+import { campEffect, hireCost, refreshBoard, saveGame, TIER_IDS, type GameState } from './state';
 
 export interface DelvePlan { partyIds: string[]; leaderId: string; tier: string; doctrine: Doctrine; fromWaystone: boolean }
 export interface DelveOutcome { result: RunResult; aftermath: RunAftermath; unlockedTier?: string; names: Record<string, string>; classes: Record<string, string> }
@@ -36,6 +36,7 @@ function runSetup(state: GameState, plan: DelvePlan): RunSetup {
     seed: hash32(state.seed, 'run', state.runs), tier: plan.tier,
     party: party.map((h) => ({ ...h.hero, gearScore: tier.gearScore })), leaderId: plan.leaderId,
     doctrine: plan.doctrine, startFloor: plan.fromWaystone ? state.waystones[plan.tier] : undefined, record: true,
+    torchBonus: campEffect(state, 'torch'),
   };
 }
 
@@ -51,16 +52,27 @@ export function beginDelve(state: GameState, plan: DelvePlan): Generator<DelveRe
   return delveSteps(runSetup(state, plan));
 }
 
+/** How a hero fell, for the memorial: where, and to what. */
+function causeOfDeath(result: RunResult, name: string): string {
+  const e = result.ledger.find((x) => x.lost.some((l) => l.startsWith(`${name} `)));
+  if (!e) return 'lost in the dark';
+  const how = e.lost.find((l) => l.startsWith(`${name} `)) ?? '';
+  if (how.includes('left behind')) return `left behind in the retreat on floor ${e.floor}`;
+  if (e.named) return `slain by ${e.named} on floor ${e.floor}`;
+  const room: Record<string, string> = { fight: 'a skirmish', elite: 'an elite fight', horde: 'a horde', boss: 'the boss fight' };
+  return `fell in ${room[e.room] ?? 'the dark'} on floor ${e.floor}`;
+}
+
 /** Write a finished delve onto the save: XP, the fallen, coin, waystones, unlocks. */
 export function settleDelve(state: GameState, plan: DelvePlan, result: RunResult): DelveOutcome {
   const party = plan.partyIds.map((id) => state.roster.find((h) => h.hero.id === id)!);
   const leader = party.find((h) => h.hero.id === plan.leaderId)!;
   const names = Object.fromEntries(party.map((h) => [h.hero.id, h.hero.name]));
   const classes = Object.fromEntries(party.map((h) => [h.hero.id, h.hero.classId]));
-  const aftermath = applyRun(state.roster, party, leader, result, plan.tier);
+  const aftermath = applyRun(state.roster, party, leader, result, plan.tier, 2 + campEffect(state, 'recovery'));
   for (const id of aftermath.died) {
     const h = state.roster.find((x) => x.hero.id === id)!;
-    state.memorial.push({ id, name: h.hero.name, classId: h.hero.classId, raceId: h.hero.raceId, level: h.hero.level, run: state.runs + 1, tier: plan.tier });
+    state.memorial.push({ id, name: h.hero.name, classId: h.hero.classId, raceId: h.hero.raceId, level: h.hero.level, run: state.runs + 1, tier: plan.tier, cause: causeOfDeath(result, h.hero.name) });
   }
   state.roster = state.roster.filter((h) => h.alive);
   state.coin += result.banked;

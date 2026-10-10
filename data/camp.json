@@ -1,0 +1,8 @@
+{
+  "_doc": "Torchwatch upgrades: built once with coin, they last for the whole save.",
+  "upgrades": {
+    "infirmary":     { "name": "Infirmary",         "cost": 150, "about": "Heroes carried out of a delve recover one delve sooner.", "effect": { "recovery": -1 } },
+    "lamplighter":   { "name": "Lamplighter's Hut", "cost": 120, "about": "Every delve sets out with 3 more torch fuel.",         "effect": { "torch": 3 } },
+    "training_yard": { "name": "Training Yard",     "cost": 220, "about": "Recruits on the hire board arrive one level higher.",  "effect": { "recruitLevel": 1 } }
+  }
+}

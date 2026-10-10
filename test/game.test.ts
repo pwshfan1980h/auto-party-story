@@ -110,3 +110,28 @@ describe('interactive delves', () => {
     expect(res.turnBackUsed).toBe(true);
   });
 });
+
+describe('Torchwatch upgrades', () => {
+  it('building costs coin once, and the effects reach the delve', async () => {
+    const { build, campEffect } = await import('../src/game/state');
+    const s = newGame(13);
+    s.coin = 1000;
+    expect(build(s, 'lamplighter')).toBeNull();
+    expect(build(s, 'lamplighter')).toMatch(/already/);
+    expect(s.coin).toBe(1000 - 120);
+    expect(campEffect(s, 'torch')).toBe(3);
+    expect(build(s, 'training_yard')).toBeNull();
+    expect(s.hireBoard.every((h) => h.hero.level >= 2)).toBe(true);
+    expect(build(s, 'infirmary')).toBeNull();
+    expect(campEffect(s, 'recovery')).toBe(-1);
+  });
+
+  it('the fallen are remembered with how they fell', () => {
+    for (let seed = 1; seed < 40; seed++) {
+      const s = newGame(seed);
+      const ids = s.roster.map((h) => h.hero.id);
+      delve(s, { partyIds: ids, leaderId: ids[0], tier: 'I', doctrine: 'depth', fromWaystone: false });
+      if (s.memorial.length) { expect(s.memorial[0].cause).toMatch(/floor|dark/); return; }
+    }
+  });
+});

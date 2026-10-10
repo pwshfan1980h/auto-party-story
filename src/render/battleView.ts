@@ -34,6 +34,10 @@ interface UnitState {
   feared: boolean;
   /** Statuses on the unit, shown as motes in the world. */
   statuses: string[];
+  /** For the Scout's Lens: who this is and what they're doing right now. */
+  name: string;
+  level: number;
+  intent: string;
   moteT: number;
   shadow: THREE.Mesh;
 }
@@ -138,6 +142,14 @@ export class BattleReplay {
   }
   get embers() { return this.fight.embersLeft; }
 
+  /** The Scout's Lens: a live read on one unit. */
+  inspect(id: string): { name: string; level: number; team: number; hp: number; maxHp: number; energy: number; intent: string; statuses: string[]; downed: boolean } | null {
+    const u = this.units.get(id);
+    if (!u || !u.alive || !u.snaps.length) return null;
+    const [, , hp, energy] = this.sample(u, this.t);
+    return { name: u.name, level: u.level, team: u.team, hp: Math.max(0, Math.round(hp)), maxHp: u.maxHp, energy: Math.round(energy), intent: u.intent, statuses: [...u.statuses], downed: u.downed };
+  }
+
   /** The unit under a screen point (for targeting orders): the nearest one within reach of the cursor. */
   pick(clientX: number, clientY: number, team?: number): { id: string; team: number } | null {
     const rect = this.scene.canvas.getBoundingClientRect();
@@ -171,7 +183,7 @@ export class BattleReplay {
     const team = e.team as number;
     // start from the spawn position, so units are on the field from their first frame
     if (!snaps.length || snaps[0][0] > e.t) snaps.unshift([e.t, e.x as number, e.y as number, team ? Math.PI : 0, e.maxHp as number, 0]);
-    this.units.set(id, { id, view, model, team, maxHp: e.maxHp as number, snaps, alive: true, downed: false, anim: null, animStart: 0, animDur: 0, yaw: team ? -Math.PI / 2 : Math.PI / 2, drip: 0, feared: false, statuses: [], moteT: 0, shadow });
+    this.units.set(id, { id, view, model, team, maxHp: e.maxHp as number, snaps, alive: true, downed: false, anim: null, animStart: 0, animDur: 0, yaw: team ? -Math.PI / 2 : Math.PI / 2, drip: 0, feared: false, statuses: [], moteT: 0, name: (e.name as string) ?? id, level: (e.level as number) ?? 1, intent: '', shadow });
   }
 
   /** Interpolated [x, y, hp, energy] for a unit at time t. */
@@ -261,6 +273,7 @@ export class BattleReplay {
     const U = (id: unknown) => this.units.get(id as string);
     const A = this.opts.audio;
     switch (e.type) {
+      case 'rule': { const u = U(e.unit); if (u) u.intent = e.text as string; break; }
       case 'windup': {
         const u = U(e.unit); if (!u) break;
         this.act(u, e.ability as string, e.dur as number);
@@ -374,6 +387,12 @@ export class BattleReplay {
         if (e.type === 'death') {
           this.fx.burst(this.world(x, y), allVoxels(u.model), VOXEL * u.model.scale, { life: 2.4, yaw: u.yaw, spread: 1.2 });
           A?.death(this.panOf(e.unit), /skeleton|bone|skull/.test(u.model.id));
+          // a hero's fall gets its moment: Hardcore means this is the last of them
+          if (u.team === 0) {
+            const leader = this.setup.leader?.heroId === u.id;
+            this.banner(`${u.name.toUpperCase()} FALLS`, leader ? 'The torch falls with them' : 'Their name goes on the memorial');
+            this.startCine(this.world(x, y), true);
+          }
         }
         u.view.root.visible = false;
         if (this.setup.leader?.heroId === u.id) this.torchDropped = this.world(x, y, 0.15);

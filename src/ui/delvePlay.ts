@@ -28,7 +28,7 @@ const ORDER_UI: { kind: OrderKind; label: string; target: 'ally' | 'foe' | 'none
 export interface DelveView { names: Record<string, string> }
 
 export class DelvePlayer {
-  private replay: BattleReplay | null = null;
+  replay: BattleReplay | null = null;
   private wait = 0;
   private finished = false;
   private pendingQ: DelveRequest | null = null;
@@ -39,6 +39,7 @@ export class DelvePlayer {
   private targeting: (typeof ORDER_UI)[number] | null = null;
   private councilOpen = false;
   private result: RunResult | null = null;
+  private lastLeader = '';
   speed = 0.75;
   readonly opts: BattleOptions = { camera: 'subtle', clarity: false, torchFuel: 7, audio: sfx };
 
@@ -228,12 +229,14 @@ export class DelvePlayer {
     const call = e.call;
     const leaderName = call ? this.view.names[call.leader] ?? 'The Leader' : '';
     const known = this.mapFor(e);
+    queueMicrotask(() => { if (call) this.lastLeader = call.leader; });
     clear(this.hud).append(
       el('div', { class: 'hud-map' },
         el('div', { class: 'hud-title' }, `Floor ${e.floor} · room ${this.entries.length}`),
         known ? this.minimap(known, e) : null),
       el('div', { class: 'hud-room' },
         el('strong', {}, `${ROOM_NAME[e.room]}${e.named ? ` · ${e.named}` : ''}`),
+        call && this.lastLeader && call.leader !== this.lastLeader ? el('p', { class: 'warn' }, `${leaderName} takes up the torch.`) : null,
         call ? el('p', { class: 'council' }, `${leaderName}: “${call.reason}”`) : null,
         e.response === 'turned back' ? el('p', { class: 'warn' }, 'You called it: the party turns for home.') : null,
         !e.fight && e.gained.length ? el('p', { class: 'gain' }, `Found ${e.gained.join(', ')}`) : null,

@@ -45,6 +45,7 @@
     .card .who strong { font: 16px var(--display); color: var(--fg); }
     .card meter { width: 70px; height: 8px; margin-left: 6px; vertical-align: middle; }
     .card .acts { display: flex; gap: 6px; }
+    .builds { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; } .build { display: flex; flex-direction: column; gap: 4px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 8px; font-size: 12px; } .build strong { font: 15px var(--display); } .build.built { border-color: #4a6a3a; } .build button { align-self: flex-start; }
     .plan label { display: block; margin: 8px 0; } .plan select { width: 100%; margin-top: 4px; }
     .plan .check { display: flex; gap: 6px; align-items: center; }
     .memorial ul, .ledger ul, .ledger ol { padding-left: 18px; margin: 4px 0 12px; } .memorial li { margin: 3px 0; }
@@ -82,6 +83,12 @@
     .council-panel { pointer-events: auto; position: fixed; left: 50%; top: 22%; transform: translateX(-50%); width: min(460px, calc(100vw - 32px)); background: rgba(23, 20, 29, 0.97) !important; border: 1px solid var(--line); border-top: 2px solid var(--torch) !important; border-radius: 4px; padding: 14px 16px !important; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7); }
     .council-panel ul { margin: 6px 0 12px; padding-left: 18px; } .council-panel .acts { display: flex; flex-wrap: wrap; gap: 8px; }
     .council-panel button.go { font-size: 15px; padding: 8px 14px; }
+    .lens { position: absolute; width: 210px; padding: 8px 10px; background: rgba(16, 13, 20, 0.94); border: 1px solid #3a3547; border-top: 2px solid #7a5634; border-radius: 3px; font: 12px var(--mono); color: var(--fg); box-shadow: 0 6px 18px rgba(0,0,0,0.6); pointer-events: none; z-index: 5; }
+    .lens-name { font: 16px var(--display); margin-bottom: 4px; } .lens-name.foe { color: #e08a7a; } .lens-name.ally { color: var(--torch); } .lens-name small { font: 11px var(--mono); color: var(--muted); }
+    .lens-bar { position: relative; height: 12px; background: #241c26; border: 1px solid #000; margin: 3px 0; } .lens-bar span { position: absolute; inset: 0 auto 0 0; }
+    .lens-bar.hp span { background: linear-gradient(#c84a3a, #8a2a22); } .lens-bar.en span { background: linear-gradient(#e0b050, #a07a2a); }
+    .lens-bar em { position: relative; font: 10px var(--mono); font-style: normal; padding-left: 4px; text-shadow: 1px 1px 0 #000; line-height: 12px; }
+    .lens-intent { color: var(--muted); font-style: italic; margin-top: 4px; } .lens-st { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; } .lens-st span { background: #2f241b; border: 1px solid #4a3725; padding: 0 4px; font-size: 10px; }
     #bar .sp { flex: 1; }
     #vol { width: 90px; accent-color: var(--torch); }
     @media (max-width: 760px) { .town { grid-template-columns: 1fr; } }

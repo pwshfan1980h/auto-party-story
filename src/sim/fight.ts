@@ -330,7 +330,7 @@ export class Fight {
 
   /** View-only: what the renderer needs to draw a unit (not part of the determinism hash). */
   private unitInfo(u: Unit) {
-    this.emit('unitinfo', { unit: u.id, def: u.defId, team: u.team, kind: u.kind, maxHp: u.base.maxHp, radius: u.base.radius, rare: u.rare, x: r2(u.x), y: r2(u.y) }, true);
+    this.emit('unitinfo', { unit: u.id, name: u.name, level: u.level, def: u.defId, team: u.team, kind: u.kind, maxHp: u.base.maxHp, radius: u.base.radius, rare: u.rare, x: r2(u.x), y: r2(u.y) }, true);
   }
 
   // ----- helpers -----
