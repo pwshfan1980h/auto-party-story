@@ -20,9 +20,11 @@ Art and sound come from CC0 packs. `CREDITS.md` will list each one as it's added
 
 ```sh
 npm install
-npm test            # unit tests for the headless sim
+npm test               # unit tests: sim, unit art kit, golden seeds
 npm run sim -- smoke   # quick health check: data, fights, runs, determinism
 npm run sim -- all     # full balance report into reports/
+npm run golden         # regenerate golden-seed snapshots after an intended change
+npm run dev            # then open /gallery.html to review the unit models
 ```
 
-The combat and run simulation lives in `src/sim/` and has no rendering dependencies. Balance numbers live in `data/`.
+The combat and run simulation lives in `src/sim/` and has no rendering dependencies. Balance numbers live in `data/`. Unit models are original, built from the voxel parts kit in `src/art/`.

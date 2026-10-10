@@ -54,6 +54,12 @@ export class UnitView {
    * The renderer chooses the animation from the sim's events and state.
    */
   pose(anim: Anim, t: number, p = 0) {
+    this.poseVoxels(anim, t, p);
+    // offsets are authored in voxels; the body lives in tile space, so convert them
+    this.body.position.multiplyScalar(VOXEL * this.model.scale);
+  }
+
+  private poseVoxels(anim: Anim, t: number, p: number) {
     const m = this.model;
     const tt = t + this.phase;
     for (const g of this.parts.values()) g.rotation.set(0, 0, 0);

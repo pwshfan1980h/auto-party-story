@@ -43,3 +43,20 @@ describe('unit art kit', () => {
     }
   });
 });
+
+describe('unit rig', () => {
+  it('keeps feet on the ground in every pose', async () => {
+    const THREE = await import('three');
+    const { UnitView } = await import('../src/render/unitView');
+    for (const m of [heroModel('fighter', rollLook('dwarf', 1)), heroModel('mage', rollLook('elf', 2)), enemyModel('skeleton_warrior'), enemyModel('zombie')]) {
+      const v = new UnitView(m);
+      for (const anim of ['idle', 'walk', 'crouch', 'attack', 'cast', 'hurt'] as const) {
+        v.pose(anim, 0.3, 0.5);
+        v.root.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(v.root);
+        expect(box.min.y).toBeGreaterThan(-0.15);
+        expect(box.min.y).toBeLessThan(0.15);
+      }
+    }
+  });
+});
