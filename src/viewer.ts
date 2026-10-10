@@ -7,6 +7,7 @@ import type { RoomType } from './sim/types';
 import { BattleReplay, type BattleOptions } from './render/battleView';
 import { BattleScene } from './render/scene';
 import { sfx } from './audio/sfx';
+import { ScoutLens } from './ui/lens';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const scene = new BattleScene($('c'));
@@ -18,6 +19,7 @@ let speed = 0.75;
 let seed = Number(new URLSearchParams(location.search).get('seed') ?? 4021);
 let replay: BattleReplay | null = null;
 let endedAt = -1;
+const lens = new ScoutLens($('c'), overlay, () => replay);
 
 function start() {
   replay?.dispose();
@@ -54,6 +56,7 @@ scene.renderer.setAnimationLoop(() => {
     if (replay.done && endedAt < 0) endedAt = now;
     if (endedAt > 0 && now - endedAt > 3500) { seed++; start(); }
   }
+  lens.update();
   scene.render(dt);
 });
 (window as unknown as { __viewer: unknown }).__viewer = { get replay() { return replay; }, scene };

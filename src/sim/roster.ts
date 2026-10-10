@@ -20,7 +20,7 @@ export interface RunAftermath {
 }
 
 /** Apply a finished run to the roster: survivors share XP, the carried rest, the Leader grows, the dead are gone. */
-export function applyRun(roster: RosterHero[], party: RosterHero[], leader: RosterHero, r: RunResult, tier: string): RunAftermath {
+export function applyRun(roster: RosterHero[], party: RosterHero[], leader: RosterHero, r: RunResult, tier: string, recovery = 2): RunAftermath {
   const out: RunAftermath = { levelled: [], died: [], xp: {} };
   const survivors = party.filter((h) => !r.died.includes(h.hero.id));
   for (const h of survivors) {
@@ -33,7 +33,7 @@ export function applyRun(roster: RosterHero[], party: RosterHero[], leader: Rost
     const was = h.hero.level;
     while (h.hero.level < PROGRESSION.maxLevel && h.xp >= xpToNext(h.hero.level)) { h.xp -= xpToNext(h.hero.level); h.hero = { ...h.hero, level: h.hero.level + 1 }; }
     if (h.hero.level > was) out.levelled.push({ id: h.hero.id, level: h.hero.level });
-    if (r.carried.includes(h.hero.id)) h.benched = 2;
+    if (r.carried.includes(h.hero.id) && recovery > 0) h.benched = recovery;
   }
   leader.runsLed++;
   if (leader.runsLed % 4 === 0 && leader.hero.leadership < 10) leader.hero = { ...leader.hero, leadership: leader.hero.leadership + 1 };

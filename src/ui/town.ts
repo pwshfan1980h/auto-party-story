@@ -3,7 +3,7 @@ import { CLASSES, RACES, TIERS } from '../sim/data';
 import { leaderProfile, type Doctrine } from '../sim/leader';
 import { xpToNext, type RosterHero } from '../sim/roster';
 import { hire, partySizeFor, planProblem, type DelvePlan } from '../game/expedition';
-import { hireCost, TIER_IDS, type GameState } from '../game/state';
+import { build, CAMP, hireCost, TIER_IDS, type GameState } from '../game/state';
 import { clear, el } from './dom';
 import { portrait } from './portrait';
 
@@ -61,6 +61,7 @@ export class Town {
             el('h2', {}, 'The Inn', el('small', {}, ` ${s.roster.length} heroes · pick up to ${size}`)),
             el('div', { class: 'cards' }, ...s.roster.map((h) => this.heroCard(h))),
             s.roster.length === 0 ? el('p', { class: 'muted' }, 'The Inn is empty. Hire someone from the board.') : null),
+          this.campPanel(),
           this.memorialPanel()),
         el('div', { class: 'col' },
           el('section', { class: 'panel plan', 'aria-label': 'Expedition' },
@@ -82,11 +83,23 @@ export class Town {
     );
   }
 
+  private campPanel() {
+    const s = this.state;
+    return el('section', { class: 'panel camp', 'aria-label': 'Torchwatch' },
+      el('h2', {}, 'Torchwatch', el('small', {}, ` ${(s.camp ?? []).length} of ${Object.keys(CAMP).length} built`)),
+      el('div', { class: 'builds' }, ...Object.entries(CAMP).map(([id, u]) => {
+        const built = s.camp?.includes(id);
+        return el('article', { class: `build${built ? ' built' : ''}` },
+          el('strong', {}, u.name), el('span', { class: 'muted' }, u.about),
+          built ? el('span', { class: 'gain' }, 'Built') : el('button', { type: 'button', disabled: s.coin < u.cost, onclick: () => { build(s, id); this.render(); } }, `Build · ${u.cost}`));
+      })));
+  }
+
   private memorialPanel() {
     const s = this.state;
     return el('section', { class: 'panel memorial', 'aria-label': 'Memorial' },
       el('h2', {}, 'The memorial'),
-      s.memorial.length ? el('ul', {}, ...s.memorial.slice().reverse().map((m) => el('li', {}, `${m.name}, ${RACES[m.raceId]?.name ?? m.raceId} ${CLASSES[m.classId]?.name ?? m.classId}, level ${m.level}. Fell on delve ${m.run}, Tier ${m.tier}.`))) : el('p', { class: 'muted' }, 'No names yet.'),
+      s.memorial.length ? el('ul', {}, ...s.memorial.slice().reverse().map((m) => el('li', {}, `${m.name}, ${RACES[m.raceId]?.name ?? m.raceId} ${CLASSES[m.classId]?.name ?? m.classId}, level ${m.level}: ${m.cause ?? 'fell'} (Tier ${m.tier}, delve ${m.run}).`))) : el('p', { class: 'muted' }, 'No names yet.'),
       el('h2', {}, 'Past delves'),
       s.history.length ? el('ul', {}, ...s.history.slice(0, 10).map((r) => el('li', {}, `#${r.run} Tier ${r.tier}: ${r.outcome === 'cleared' ? 'cleared' : r.outcome === 'retreat' ? 'came home' : 'wiped'}, floor ${r.floors}, +${r.banked} coin${r.died.length ? `, lost ${r.died.join(', ')}` : ''}`))) : el('p', { class: 'muted' }, 'No delves yet.'),
       el('button', { type: 'button', class: 'quiet', onclick: () => { if (this.abandonArmed) this.on.onAbandon(); else { this.abandonArmed = true; this.render(); } } }, this.abandonArmed ? 'Really abandon this save? Click again' : 'Abandon save'));

@@ -3,6 +3,7 @@ import { sfx } from '../audio/sfx';
 import { BattleScene } from '../render/scene';
 import { DelvePlayer } from '../ui/delvePlay';
 import { renderLedger } from '../ui/ledger';
+import { ScoutLens } from '../ui/lens';
 import { Town } from '../ui/town';
 import { beginDelve, finishPending, settleDelve, type DelveOutcome, type DelvePlan } from './expedition';
 import { eraseGame, loadGame, newGame, saveGame, type GameState } from './state';
@@ -15,6 +16,7 @@ const finishedWithoutYou = finishPending(state);
 saveGame(state);
 let scene: BattleScene | null = null;
 let player: DelvePlayer | null = null;
+const lens = new ScoutLens($('c'), $('ov'), () => player?.replay ?? null);
 
 const town = new Town(app, state, { onDelve: startDelve, onAbandon: () => { eraseGame(); state = newGame(); saveGame(state); town.setState(state); } });
 town.render();
@@ -66,7 +68,7 @@ function frame() {
   const now = performance.now();
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  if (player && scene) { player.update(dt); scene.render(dt); }
+  if (player && scene) { player.update(dt); lens.update(); scene.render(dt); }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

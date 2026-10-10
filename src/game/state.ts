@@ -1,5 +1,6 @@
 // The save file: one persistent Torchwatch per save (DESIGN §7b), kept in the browser.
 import namesJson from '../../data/names.json';
+import campJson from '../../data/camp.json';
 import { CLASSES, RACES, TIERS } from '../sim/data';
 import { stream } from '../sim/rng';
 import { ZONE, type RosterHero } from '../sim/roster';
@@ -10,7 +11,7 @@ export const BASE_CLASSES = Object.keys(CLASSES).filter((c) => !CLASSES[c].base)
 const HIRE_RACES = Object.keys(RACES);
 const SAVE_KEY = 'aps-save-v1';
 
-export interface Fallen { id: string; name: string; classId: string; raceId: string; level: number; run: number; tier: string }
+export interface Fallen { id: string; name: string; classId: string; raceId: string; level: number; run: number; tier: string; cause?: string }
 export interface RunSummary { run: number; tier: string; outcome: RunResult['outcome']; banked: number; floors: number; died: string[]; levelled: number }
 
 export interface GameState {
@@ -29,6 +30,28 @@ export interface GameState {
   hired: number;
   /** A delve in progress. Hardcore: if the page closes mid-delve, it is finished without the player on next load. */
   pending?: { plan: import('./expedition').DelvePlan; run: number };
+  /** Torchwatch upgrades built so far (they last for the whole save). */
+  camp?: string[];
+}
+
+export interface CampUpgrade { name: string; cost: number; about: string; effect: { recovery?: number; torch?: number; recruitLevel?: number } }
+export const CAMP = (campJson as unknown as { upgrades: Record<string, CampUpgrade> }).upgrades;
+
+/** The sum of one effect across everything built. */
+export function campEffect(state: GameState, key: keyof CampUpgrade['effect']): number {
+  return (state.camp ?? []).reduce((s, id) => s + (CAMP[id]?.effect[key] ?? 0), 0);
+}
+
+export function build(state: GameState, id: string): string | null {
+  const u = CAMP[id];
+  if (!u) return 'No such building.';
+  if (state.camp?.includes(id)) return `${u.name} is already built.`;
+  if (state.coin < u.cost) return `${u.name} costs ${u.cost} coin.`;
+  state.coin -= u.cost;
+  state.camp = [...(state.camp ?? []), id];
+  if (CAMP[id].effect.recruitLevel) refreshBoard(state);
+  saveGame(state);
+  return null;
 }
 
 const names = namesJson as unknown as Record<string, { start: string[]; middle: string[]; end: string[] }>;
@@ -57,7 +80,7 @@ export const hireCost = (h: RosterHero) => 20 + 15 * (h.hero.level - 1);
 /** The board shows a few recruits, trained toward the newest unlocked tier. */
 export function refreshBoard(state: GameState) {
   const band = TIERS[TIER_IDS[state.unlocked]].heroLevel;
-  state.hireBoard = Array.from({ length: 3 }, () => candidate(state, Math.max(1, band - 2)));
+  state.hireBoard = Array.from({ length: 3 }, () => candidate(state, Math.max(1, band - 2) + campEffect(state, 'recruitLevel')));
 }
 
 export function newGame(seed = Math.floor(Math.random() * 1e9)): GameState {

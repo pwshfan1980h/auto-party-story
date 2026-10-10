@@ -39,6 +39,8 @@ export interface RunSetup {
   startFloor?: number;
   /** Keep each fight's setup on its ledger entry, so the game can replay the room. */
   record?: boolean;
+  /** Extra torch fuel (a Torchwatch upgrade). */
+  torchBonus?: number;
 }
 
 export interface LedgerEntry {
@@ -141,7 +143,7 @@ export function* delveSteps(setup: RunSetup): Generator<DelveRequest, RunResult,
   // a waystone skips the floors above it; the party packs torches for the floors left
   const first = Math.max(tier.floors[0], Math.min(tier.floors[1], setup.startFloor ?? tier.floors[0]));
   const floorCount = Math.min(tier.floorsPerRun, tier.floors[1] - first + 1);
-  let torch = setup.torch ?? DELVE.torch.base + DELVE.torch.perFloor * floorCount;
+  let torch = setup.torch ?? DELVE.torch.base + DELVE.torch.perFloor * floorCount + (setup.torchBonus ?? 0);
   const heroes = new Map<string, HeroState>(setup.party.map((h) => [h.id, { snap: h, hp: -1, maxHp: -1, energy: 0, alive: true, carried: false, dealt: 0, healed: 0, kills: 0 }]));
   let leaderId = setup.leaderId;
   let leaderDied = false;
