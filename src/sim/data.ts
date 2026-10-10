@@ -145,7 +145,7 @@ export interface LeaderRankDef {
   knowsTypes: boolean;
   namedSense: number;
 }
-export interface TemperamentDef { greed: number; pushBias: number; streak: 'neutral' | 'ignore' | 'panic' | 'charge'; hpFloor?: number; visionBonus?: number }
+export interface TemperamentDef { greed: number; pushBias: number; /** Seasoned+ only: extra risk carried, in heroes' worth. */ planPush?: number; streak: 'neutral' | 'ignore' | 'panic' | 'charge'; hpFloor?: number; visionBonus?: number }
 export const LEADERSHIP = leadershipJson as unknown as {
   ranks: LeaderRankDef[];
   temperaments: Record<string, TemperamentDef>;
