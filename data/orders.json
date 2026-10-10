@@ -1,0 +1,19 @@
+{
+  "_doc": "Player Orders (DESIGN §4): ember cost and cooldown in seconds, and the 'good' order bot the suites play with.",
+  "orders": {
+    "mend": { "cost": 1, "cooldown": 6 },
+    "focus": { "cost": 1, "cooldown": 8 },
+    "guard": { "cost": 1, "cooldown": 10 },
+    "interrupt": { "cost": 1, "cooldown": 10 },
+    "unleash": { "cost": 2, "cooldown": 15 },
+    "hold": { "cost": 2, "cooldown": 12 },
+    "charge": { "cost": 2, "cooldown": 12 },
+    "fallback": { "cost": 2, "cooldown": 9999 }
+  },
+  "goodBot": {
+    "mendBelowHp": 0.2,
+    "unleashBelowHp": 0.5,
+    "holdBelowHp": 0.6,
+    "reserveForInterrupt": 1
+  }
+}

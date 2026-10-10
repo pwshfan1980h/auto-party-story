@@ -233,27 +233,32 @@ function policies() {
   }
   table(['Tier', 'Policy', 'Wiped', 'Deaths/hero', 'Banked', 'Warnings/run', 'Turned back', 'This way/run', 'Embers spent/run', 'Rares killed/escaped'], rows);
   json.policies = data;
-  md('### Player Orders in single fights (none / good / spam)');
+  md('### Player Orders in single fights (none / good / spam): win rate and deaths per fight');
+  // Hardcore: what good orders buy is mostly lives, since these rooms are usually won anyway
   const orows: (string | number)[][] = [];
+  const total = { none: 0, good: 0, spam: 0 };
   for (const tier of TIER_LIST) for (const room of ['elite', 'boss'] as RoomType[]) {
     const cell: (string | number)[] = [tier, room];
-    const res: Record<string, number> = {};
+    const died: Record<string, number> = {};
     for (const pol of ['none', 'good', 'spam'] as const) {
-      let w = 0;
+      let w = 0, d = 0;
       const N = Math.max(40, SEEDS);
       for (let s = 0; s < N; s++) {
         const r = runFight({ seed: s, key: ['o', tier, room], tier, roomType: room, heroes: party(PRESETS.starter, tier), monsters: buildEncounter(tier, room, TIERS[tier].floors[0] + 1, stream(s, 'enc-o', tier, room)), embers: 3, orderPolicy: pol, leader: { heroId: 'fighter0', rank: 'seasoned', noise: 0.15, temperament: 'stubborn' } });
         if (r.result === 'victory') w++;
+        d += r.died.length;
       }
-      res[pol] = w / N;
-      cell.push(pct(w / N));
+      died[pol] = d / N; total[pol] += d / N;
+      cell.push(`${pct(w / N)} · ${(d / N).toFixed(2)}`);
     }
     orows.push(cell);
-    const lift = res.good - res.none;
-    if (lift < 0.08 && res.none < 0.9) flags.push(`Tier ${tier} ${room}: good orders lift ${(lift * 100).toFixed(0)} pts (target +8 to +15)`);
-    if (res.spam > res.good) flags.push(`Tier ${tier} ${room}: spam orders (${pct(res.spam)}) beat good orders (${pct(res.good)})`);
+    if (died.spam < died.good - 0.1) flags.push(`Tier ${tier} ${room}: spam orders lose fewer heroes (${died.spam.toFixed(2)}) than good orders (${died.good.toFixed(2)})`);
   }
   table(['Tier', 'Room', 'No orders', 'Good bot', 'Spam bot'], orows);
+  const cut = 1 - total.good / Math.max(1e-9, total.none);
+  md(`Good orders cut deaths by ${pct(cut)} (target ≥ ${pct(TARGETS.ordersDeathCut)}); spam by ${pct(1 - total.spam / Math.max(1e-9, total.none))}.`);
+  if (cut < TARGETS.ordersDeathCut) flags.push(`good orders cut deaths by ${pct(cut)} (target ≥ ${pct(TARGETS.ordersDeathCut)})`);
+  if (total.spam <= total.good) flags.push('spam orders lose no more heroes than good orders');
 }
 
 function campaign() {

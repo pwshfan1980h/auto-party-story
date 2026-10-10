@@ -11,6 +11,7 @@ import leadershipJson from '../../data/leadership.json';
 import progressionJson from '../../data/progression.json';
 import baselinesJson from '../../data/leader-baselines.json';
 import delveJson from '../../data/delve.json';
+import ordersJson from '../../data/orders.json';
 import type { AbilityDef, Attrs, Role, RuleDef, StatusDef, Stats } from './types';
 
 type StatBlock = Partial<Pick<Stats, 'maxHp' | 'power' | 'spell' | 'armor' | 'move' | 'crit' | 'evasion'>>;
@@ -154,6 +155,11 @@ export interface BaselineRow { hp: number; win: number; hpCost: number; deaths: 
 export const BASELINES = (baselinesJson as unknown as { table: Record<string, Record<string, BaselineRow[]>> }).table;
 
 export const DELVE = delveJson as unknown as { torch: { base: number; perFloor: number }; loot: Record<string, [number, number]> };
+
+export const ORDERS_DATA = ordersJson as unknown as {
+  orders: Record<string, { cost: number; cooldown: number }>;
+  goodBot: { mendBelowHp: number; unleashBelowHp: number; holdBelowHp: number; reserveForInterrupt: number };
+};
 
 export const PROGRESSION = progressionJson as { bot: { tierSlack: number; pushAt: number }; killXpPerLevel: number; roomClearBonus: number; xpCurve: { base: number; exponent: number }; overLevelGap: number; overLevelMult: number; underLevelMult: number; maxLevel: number };
 

@@ -1,6 +1,6 @@
 // The real-time fight: a fixed 20 Hz tick loop with no rendering (spec 02).
 // Phases per tick: timers → projectiles/telegraphs → decisions → movement → actions → deaths/end.
-import { ABILITIES, ARCHETYPES, CLASSES, ENEMIES, RULES, SPECIES, STATUSES, TIERS } from './data';
+import { ABILITIES, ARCHETYPES, CLASSES, ENEMIES, ORDERS_DATA, RULES, SPECIES, STATUSES, TIERS } from './data';
 import { flowDir, flowField, generateField, lineOfSight, SpatialHash, walkableAt, type Field } from './field';
 import { hash32, stream, type Rng } from './rng';
 import { autoAttrs, heroStats, monsterStats, rollDamage } from './stats';
@@ -48,10 +48,7 @@ export const GOOD_POLICY = { mend: true, interrupt: true, focus: true, unleash: 
 export type OrderKind = 'mend' | 'focus' | 'guard' | 'interrupt' | 'unleash' | 'hold' | 'charge' | 'fallback';
 
 /** Player Orders: ember cost and cooldown (DESIGN §4). */
-export const ORDERS: Record<OrderKind, { cost: number; cooldown: number }> = {
-  mend: { cost: 1, cooldown: 6 }, focus: { cost: 1, cooldown: 8 }, guard: { cost: 1, cooldown: 10 }, interrupt: { cost: 1, cooldown: 10 },
-  unleash: { cost: 2, cooldown: 15 }, hold: { cost: 2, cooldown: 12 }, charge: { cost: 2, cooldown: 12 }, fallback: { cost: 2, cooldown: 9999 },
-};
+export const ORDERS = ORDERS_DATA.orders as Record<OrderKind, { cost: number; cooldown: number }>;
 
 export interface FightSetup {
   seed: number;
@@ -1135,19 +1132,24 @@ export class Fight {
       if (pool.length) this.order(k, pool[this.policyRng.int(pool.length)].id);
       return;
     }
+    const bot = ORDERS_DATA.goodBot;
+    // keep embers back for interrupts while a foe with a big cast is standing
+    const bigCaster = (e: Unit) => !e.minion && [...e.skills, e.ult].some((id) => id && (ABILITIES[id]?.windup ?? 0) >= 0.4);
+    const reserve = foes.some(bigCaster) ? bot.reserveForInterrupt : 0;
+    const spare = (kind: OrderKind) => this.embers - ORDERS[kind].cost >= reserve;
     const downed = this.units.find((u) => u.kind === 'hero' && u.alive && u.downedLeft > 0);
     if (GOOD_POLICY.mend && downed && this.order('mend', downed.id) === 'ok') return;
-    const hurt = party.filter((u) => u.kind === 'hero' && u.hp / u.base.maxHp < 0.3).sort((a, b) => a.hp / a.base.maxHp - b.hp / b.base.maxHp)[0];
-    if (GOOD_POLICY.mend && hurt && this.order('mend', hurt.id) === 'ok') return;
+    const hurt = party.filter((u) => u.kind === 'hero' && u.hp / u.base.maxHp < bot.mendBelowHp).sort((a, b) => a.hp / a.base.maxHp - b.hp / b.base.maxHp)[0];
+    if (GOOD_POLICY.mend && hurt && spare('mend') && this.order('mend', hurt.id) === 'ok') return;
     const caster = foes.find((e) => e.windup && ABILITIES[e.windup.ability].windup >= 0.4 && (e.base.maxHp > 300 || !e.minion));
     if (GOOD_POLICY.interrupt && caster && this.order('interrupt', caster.id) === 'ok') return;
     const prey = foes.find((e) => e.rare) ?? foes.find((e) => !e.minion && foes.some((m) => m.minion)) ?? foes.find((e) => ['mender', 'summoner'].includes(ENEMIES[e.defId]?.archetype ?? ''));
-    if (GOOD_POLICY.focus && prey && this.focusId !== prey.id && this.order('focus', prey.id) === 'ok') return;
+    if (GOOD_POLICY.focus && prey && this.focusId !== prey.id && spare('focus') && this.order('focus', prey.id) === 'ok') return;
     // brace when outnumbered and hurting; that's when a party-wide ward pays for its embers
     const partyHp = party.reduce((s2, u) => s2 + u.hp / u.base.maxHp, 0) / Math.max(1, party.length);
-    if (GOOD_POLICY.hold && foes.length > party.length && partyHp < 0.6 && this.order('hold') === 'ok') return;
+    if (GOOD_POLICY.hold && foes.length > party.length && partyHp < bot.holdBelowHp && spare('hold') && this.order('hold') === 'ok') return;
     const charged = party.find((u) => u.ult && u.energy >= 80 && u.energy < 100);
-    if (GOOD_POLICY.unleash && charged && foes.length >= 3 && this.order('unleash', charged.id) === 'ok') return;
+    if (GOOD_POLICY.unleash && charged && foes.length >= 3 && partyHp < bot.unleashBelowHp && spare('unleash') && this.order('unleash', charged.id) === 'ok') return;
   }
 
   private finish(): FightResult {
