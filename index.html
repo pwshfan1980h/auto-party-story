@@ -4,13 +4,56 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Auto Party Story</title>
+  <meta name="description" content="Hire a party, hand the torch to a Leader, and watch them delve. Hardcore: the fallen stay fallen." />
+  <meta property="og:title" content="Auto Party Story" />
+  <meta property="og:description" content="Hire a party, hand the torch to a Leader, and watch them delve. Hardcore: the fallen stay fallen." />
+  <meta property="og:image" content="https://pwshfan1980h.github.io/auto-party-story/preview.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card" content="summary_large_image" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600&family=JetBrains+Mono:wght@500&display=swap" />
   <style>
-    :root { color-scheme: dark; --bg: #07060b; --panel: #1e1b26; --line: #3a3547; --fg: #ece5d4; --muted: #a59d8d; --torch: #f2a640; --blood: #e0594d; --moss: #8cbf6f; --display: "Pixelify Sans", ui-monospace, monospace; --mono: "JetBrains Mono", ui-monospace, monospace; }
+    :root { color-scheme: dark; --bg: #07060b; --panel: #17141d; --panel-2: #1f1a26; --line: #3a3547; --fg: #ece5d4; --muted: #a59d8d; --torch: #f2a640; --blood: #e0594d; --moss: #8cbf6f; --wood: #2f241b; --wood-line: #4a3725; --display: "Pixelify Sans", ui-monospace, monospace; --mono: "JetBrains Mono", ui-monospace, monospace; }
     * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 14px/1.4 var(--mono); }
-    #stage { position: fixed; inset: 0; }
+    html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--fg); font: 14px/1.45 var(--mono); }
+    body { background: radial-gradient(ellipse at 50% -10%, #2a1a0e 0%, var(--bg) 55%) fixed; }
+    h1, h2 { font-family: var(--display); font-weight: 600; margin: 0 0 8px; }
+    h1 { font-size: clamp(26px, 5vw, 40px); color: var(--torch); text-shadow: 2px 2px 0 #000; }
+    h2 { font-size: 18px; color: var(--torch); }
+    h2 small { font: 12px var(--mono); color: var(--muted); }
+    .muted { color: var(--muted); } .warn { color: var(--blood); } .gain { color: var(--moss); } .big { font: 20px var(--display); }
+    button, select { font: 600 12px var(--mono); color: var(--fg); background: var(--wood); border: 1px solid var(--wood-line); border-radius: 3px; padding: 6px 10px; cursor: pointer; }
+    button[aria-pressed="true"] { background: var(--torch); color: #1a1208; border-color: var(--torch); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--torch); outline-offset: 2px; }
+    button.go { font: 600 18px var(--display); padding: 10px 22px; background: var(--torch); color: #1a1208; border-color: #ffcf7a; box-shadow: 0 0 18px rgba(242, 166, 64, 0.35); }
+    button.quiet { background: none; border-color: var(--line); color: var(--muted); margin-top: 12px; }
+    #app { max-width: 1180px; margin: 0 auto; padding: 16px 16px 40px; }
+    .town-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+    .town-head .stats { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); }
+    .town-head .stats span:first-child { color: var(--torch); }
+    .town { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 14px; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-top: 2px solid #7a5634; border-radius: 4px; padding: 14px; min-width: 0; }
+    .town .col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+    .card { display: grid; grid-template-columns: 64px 1fr; grid-template-rows: auto auto; gap: 4px 10px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 8px; }
+    .card.picked { border-color: var(--torch); box-shadow: 0 0 0 1px var(--torch) inset; }
+    .card.resting { opacity: 0.7; }
+    .card .portrait { grid-row: span 2; width: 64px; height: 75px; image-rendering: pixelated; background: #0d0b11; border-radius: 3px; object-fit: contain; }
+    .card .who { display: flex; flex-direction: column; gap: 1px; min-width: 0; font-size: 12px; }
+    .card .who strong { font: 16px var(--display); color: var(--fg); }
+    .card meter { width: 70px; height: 8px; margin-left: 6px; vertical-align: middle; }
+    .card .acts { display: flex; gap: 6px; }
+    .plan label { display: block; margin: 8px 0; } .plan select { width: 100%; margin-top: 4px; }
+    .plan .check { display: flex; gap: 6px; align-items: center; }
+    .memorial ul, .ledger ul, .ledger ol { padding-left: 18px; margin: 4px 0 12px; } .memorial li { margin: 3px 0; }
+    .ledger { display: grid; gap: 14px; max-width: 760px; margin: 0 auto; }
+    .ledger h1.wipe { color: var(--blood); } .ledger h1.cleared { color: var(--moss); }
+    .ledger .rooms li { margin: 2px 0; }
+    /* the delve: battle canvas with a HUD */
+    #stage { position: fixed; inset: 0; display: none; }
+    body.delving #stage { display: block; } body.delving #app { display: none; }
     #c { width: 100%; height: 100%; display: block; image-rendering: pixelated; }
     #ov { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
     .fx-label { position: absolute; transform: translate(-50%, -50%); font: 16px var(--display); text-shadow: 1px 1px 0 #000; white-space: nowrap; }
@@ -19,28 +62,35 @@
     .fx-label.banner { left: 50%; top: 18%; font-size: clamp(22px, 4vw, 42px); color: var(--torch); text-shadow: 2px 2px 0 #000; text-align: center; animation: ban 1.8s ease-out forwards; }
     .fx-label.banner small { display: block; font-size: 0.45em; color: var(--fg); }
     @keyframes ban { 0% { opacity: 0; transform: translate(-50%, -50%) scale(1.4); } 12% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
-    #bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px)); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; background: rgba(20, 18, 26, 0.86); border-top: 2px solid #120c08; box-shadow: inset 0 2px 0 #7a5634; }
+    #hud { position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); left: 12px; right: 12px; display: flex; gap: 12px; align-items: flex-start; pointer-events: none; flex-wrap: wrap; }
+    #hud > div { background: rgba(20, 18, 26, 0.86); border: 1px solid var(--line); border-top: 2px solid #7a5634; border-radius: 4px; padding: 8px 10px; }
+    .hud-title { font: 13px var(--display); color: var(--muted); margin-bottom: 4px; }
+    .hud-room { max-width: 420px; } .hud-room strong { font: 18px var(--display); color: var(--torch); } .hud-room p { margin: 4px 0 0; }
+    .council { font-style: italic; }
+    .minimap { width: min(300px, 70vw); height: auto; display: block; }
+    .minimap .path { stroke: #4a4256; stroke-width: 2; } .minimap .path.walked { stroke: var(--torch); }
+    .minimap .node { fill: #241f2c; stroke: #5a5068; stroke-width: 1.5; } .minimap .node.done { fill: #3a2c1c; stroke: #9a7040; } .minimap .node.here { fill: var(--torch); stroke: #fff2c8; }
+    .minimap .glyph { font: 10px var(--mono); fill: var(--fg); text-anchor: middle; }
+    #bar { position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px)); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; background: rgba(20, 18, 26, 0.86); border-top: 2px solid #120c08; box-shadow: inset 0 2px 0 #7a5634; }
     #bar .sp { flex: 1; }
-    button, select { font: 600 12px var(--mono); color: var(--fg); background: #2f241b; border: 1px solid #4a3725; border-radius: 3px; padding: 5px 9px; cursor: pointer; }
-    button[aria-pressed="true"] { background: var(--torch); color: #1a1208; }
-    button:focus-visible, select:focus-visible { outline: 2px solid var(--torch); outline-offset: 2px; }
-    #status { color: var(--muted); font-size: 12px; }
-    #title { position: fixed; top: calc(10px + env(safe-area-inset-top, 0px)); left: 14px; font: 18px var(--display); color: var(--muted); text-shadow: 1px 1px 0 #000; }
+    @media (max-width: 760px) { .town { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
-  <div id="stage"><canvas id="c" aria-label="Isometric voxel battle"></canvas><div id="ov"></div></div>
-  <div id="title">Auto Party Story · battle viewer (M1)</div>
-  <div id="bar">
-    <button id="next" type="button">New fight</button>
-    <select id="tier" aria-label="Tier"><option value="I">Tier I · Crypt Shallows</option><option value="II" selected>Tier II · The Crypt</option><option value="III">Tier III · Fungal Caverns</option></select>
-    <select id="room" aria-label="Room"><option value="normal">Normal room</option><option value="elite" selected>Elite room</option><option value="horde">Horde</option><option value="boss">Boss</option></select>
-    <span id="speed" role="group" aria-label="Speed"></span>
-    <button id="cam" type="button" aria-pressed="true">Battle camera</button>
-    <button id="clarity" type="button" aria-pressed="false" title="Accessibility: damage numbers">Clarity</button>
-    <span class="sp"></span>
-    <span id="status"></span>
+  <div id="app"></div>
+  <div id="stage">
+    <canvas id="c" aria-label="The delve, in voxels"></canvas>
+    <div id="ov"></div>
+    <div id="hud" aria-live="polite"></div>
+    <div id="bar">
+      <span id="speed" role="group" aria-label="Speed"></span>
+      <button id="skip" type="button">Skip fight</button>
+      <button id="cam" type="button" aria-pressed="true">Battle camera</button>
+      <button id="clarity" type="button" aria-pressed="false" title="Accessibility: damage numbers">Clarity</button>
+      <span class="sp"></span>
+      <button id="ledger" type="button">Skip to the ledger</button>
+    </div>
   </div>
-  <script type="module" src="/src/main.ts"></script>
+  <script type="module" src="/src/game/main.ts"></script>
 </body>
 </html>

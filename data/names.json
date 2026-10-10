@@ -1,0 +1,9 @@
+{
+  "_doc": "Name parts by race. A hero's name is one start, an optional middle and one end, picked from their seed.",
+  "human":    { "start": ["Al", "Bran", "Cor", "Da", "Ed", "Fen", "Gar", "Hal", "Is", "Jo", "Ma", "Ro", "Wil", "Ty"], "middle": ["a", "e", "i", "o", ""], "end": ["ric", "wyn", "da", "son", "na", "dric", "la", "mund", "ra", "bert"] },
+  "dwarf":    { "start": ["Bor", "Dur", "Grim", "Thra", "Kal", "Bal", "Hild", "Dag", "Gun", "Brok"], "middle": ["", "a", "i", "u"], "end": ["in", "rik", "dra", "grum", "li", "nar", "hild", "dok"] },
+  "elf":      { "start": ["Ae", "Ca", "El", "Fae", "Ila", "Lae", "Myr", "Syl", "Tha", "Ve"], "middle": ["la", "ri", "the", "nae", "", "lo"], "end": ["ndra", "riel", "thas", "wen", "lis", "ion", "nor", "sae"] },
+  "halfling": { "start": ["Bil", "Cam", "Dod", "Fin", "Mer", "Nib", "Pip", "Ros", "Tam", "Wim"], "middle": ["", "a", "o", "i"], "end": ["bo", "kin", "ny", "ble", "sy", "wick", "do", "lie"] },
+  "orc":      { "start": ["Gro", "Kra", "Mug", "Rok", "Thru", "Ug", "Zag", "Bru", "Gash", "Ska"], "middle": ["", "a", "u", "o"], "end": ["nak", "gash", "tok", "ra", "zug", "mok", "dra", "gul"] },
+  "goblin":   { "start": ["Ik", "Nix", "Snik", "Pog", "Zib", "Grib", "Tik", "Mox", "Rizz", "Vik"], "middle": ["", "i", "le", "a"], "end": ["it", "le", "snap", "wort", "zik", "bit", "nik", "ka"] }
+}

@@ -5,7 +5,7 @@ import { CLASSES, ENEMIES, LEADERSHIP, PROGRESSION, RANKS, TIERS, DELVE } from '
 import { FIGHT_TYPES, generateFloor, reveal, type FloorMap, type MapNode, type NodeType } from './delve';
 import { buildEncounter } from './encounter';
 import { LOOT } from './loot';
-import { Fight, type FightResult, type HeroSnapshot } from './fight';
+import { Fight, type FightResult, type FightSetup, type HeroSnapshot } from './fight';
 import { decide, leaderProfile, type Decision, type Doctrine } from './leader';
 import { stream } from './rng';
 import type { RoomType } from './types';
@@ -36,6 +36,8 @@ export interface RunSetup {
   policy?: RunPolicy;
   /** Start at a waystone: a floor of this tier already reached (defaults to the tier's first floor). */
   startFloor?: number;
+  /** Keep each fight's setup on its ledger entry, so the game can replay the room. */
+  record?: boolean;
 }
 
 export interface LedgerEntry {
@@ -52,6 +54,8 @@ export interface LedgerEntry {
   /** Observed warnings before committing to this room, and how the policy answered them. */
   warnings?: RunWarning[];
   response?: 'trusted' | 'turned back' | 'this way';
+  /** With `record`: the exact fight, replayable by re-simulating it. */
+  fight?: FightSetup;
 }
 
 export interface RunResult {
@@ -166,14 +170,16 @@ export function runRun(setup: RunSetup): RunResult {
     if (n.named) { namedMet++; entry.named = n.named; }
     const team = active();
     const before = team.map((h) => (h.hp < 0 ? 1 : h.hp / h.maxHp));
-    const fight = new Fight({
+    const fightSetup: FightSetup = {
       seed: setup.seed, key: [fl, n.id], tier: setup.tier, roomType,
       heroes: team.map((h) => ({ ...h.snap, hp: h.hp < 0 ? undefined : h.hp, energy: h.energy })),
       monsters,
       leader: { heroId: lh.snap.id, rank: LP.rank.id as 'novice', noise: LP.rank.noise, temperament: LP.temperament },
       embers,
       orderPolicy: policy === 'orders' ? 'good' : 'none',
-    });
+    };
+    if (setup.record) entry.fight = fightSetup;
+    const fight = new Fight(fightSetup);
     const r: FightResult = fight.run();
     embersSpent += Math.max(0, embers - r.embersLeft);
     embers = r.embersLeft;
