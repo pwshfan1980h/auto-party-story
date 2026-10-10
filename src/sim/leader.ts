@@ -40,6 +40,8 @@ export interface PartyState {
   packRaw?: number;
   heroes?: number;
   heroLevel?: number;
+  /** The party's average level, so Leaders credit a party that outlevels the tier. */
+  partyLevel?: number;
 }
 
 const FIGHT_ROOM: Partial<Record<NodeType | '?', string>> = { fight: 'normal', elite: 'elite', horde: 'horde', boss: 'boss', '?': 'normal' };
@@ -69,9 +71,13 @@ function roomEV(L: LeaderProfile, s: PartyState, map: FloorMap, id: number, hp: 
   let b = baseline(s.tierId ?? 'I', type, hp);
   const opt = ev.optimism[L.rank.id] ?? 0;
   if (opt) b = { ...b, win: b.win + (1 - b.win) * opt, deaths: b.deaths * (1 - opt) };
+  // the table is measured at the tier's hero level; each level of advantage shrinks the risk
+  const gap = Math.max(-3, Math.min(8, (s.partyLevel ?? s.heroLevel ?? 2) - (s.heroLevel ?? 2)));
+  if (gap) { const k = Math.pow(ev.levelFactor, gap); b = { ...b, win: 1 - (1 - b.win) * k, deaths: Math.min(1, b.deaths * k) }; }
   const heroValue = ev.heroValuePerLevel * (s.heroLevel ?? 2);
   const heroes = s.heroes ?? 3;
-  const gain = lootValue(type, s.floor) * (0.6 + greed) * b.win;
+  // with a full pack, new loot is only worth the upgrades it brings
+  const gain = lootValue(type, s.floor) * (0.6 + greed) * b.win * (s.pack >= 1 ? ev.fullPackShare : 1);
   const loss = (1 - b.win) * (s.packRaw ?? 0) + b.deaths * heroes * heroValue + (n.named && n.seen ? heroValue * heroes * 0.5 : 0);
   let value = gain - loss;
   if (type === 'campfire') value += (1 - hp) * heroValue * 0.3;
@@ -180,7 +186,7 @@ export function decide(L: LeaderProfile, truth: PartyState, map: FloorMap, at: n
     else if (temper.streak === 'charge') return result('push', 2, 'They bloodied us. Now we bloody them!', 0.7);
   }
   // 4. pack
-  if (allowed(3)) {
+  if (allowed(3) && !planner) {
     checks[3] = 'pass';
     if (read.pack >= 0.85 && read.packValue >= 0.7 && greed < 0.8) return result('retreat', 3, 'The pack is full of good things. Bank it.', 0.7);
   }

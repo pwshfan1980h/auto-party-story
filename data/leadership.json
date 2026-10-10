@@ -6,7 +6,7 @@
         1,
         3
       ],
-      "checks": 3,
+      "checks": 4,
       "noise": 0.3,
       "vision": 1,
       "margin": 0,
@@ -104,7 +104,9 @@
   "namedSignPenalty": 0.4,
   "ev": {
     "_doc": "Expected-value planning for Seasoned+ Leaders (spec 07). Hero value is what a Leader puts on losing one hero for good.",
-    "heroValuePerLevel": 100,
+    "heroValuePerLevel": 60,
+    "levelFactor": 0.75,
+    "fullPackShare": 0.35,
     "lookahead": {
       "novice": 0,
       "seasoned": 0,
@@ -113,14 +115,14 @@
     },
     "optimism": {
       "novice": 0,
-      "seasoned": 0.5,
+      "seasoned": 0.125,
       "veteran": 0,
       "master": 0
     },
-    "discount": 0.7,
+    "discount": 0.975,
     "dressing": 0.15,
     "doctrineMargin": {
-      "balanced": 0,
+      "balanced": -20,
       "home": 25,
       "pack": -10,
       "depth": -25
