@@ -1,0 +1,58 @@
+{
+  "_doc": "Role templates (spec 06/12). 'skill' and 'ult' mean the unit's first skill and its ultimate. Conditions can be joined with '&'.",
+  "tank": [
+    { "if": "energyFull", "use": "ult", "on": "nearest", "move": "approach", "text": "Ultimate on {t}" },
+    { "if": "enemiesInRange:2:1.6", "use": "skill", "on": "nearest", "move": "approach", "text": "Cleaving into {t}" },
+    { "if": "always", "use": "basic", "on": "nearestToAllies", "move": "screen", "text": "Holding the line against {t}" }
+  ],
+  "bruiser": [
+    { "if": "energyFull&enemiesInRange:2:1.8", "use": "ult", "on": "nearest", "move": "approach", "text": "Ultimate into the crowd" },
+    { "if": "always", "use": "basic", "on": "nearest", "move": "charge", "text": "Charging {t}" }
+  ],
+  "striker": [
+    { "if": "energyFull", "use": "ult", "on": "lowestHp", "move": "flank", "text": "Ultimate on {t}" },
+    { "if": "always", "use": "skill", "on": "backline", "move": "flank", "text": "Backstabbing {t}" },
+    { "if": "always", "use": "basic", "on": "backline", "move": "flank", "text": "Flanking to {t}" }
+  ],
+  "heal": [
+    { "if": "allyDowned", "use": "revive", "on": "downedAlly", "move": "approach", "text": "Reviving {t}" },
+    { "if": "energyFull&alliesBelow:0.6:2", "use": "ult", "on": "self", "move": "regroup", "text": "Calling Sanctuary" },
+    { "if": "allyHpBelow:0.55", "use": "skill", "on": "allyLowestHpPct", "move": "kite:3", "text": "Mending {t}" },
+    { "if": "always", "use": "basic", "on": "nearest", "move": "kite:3", "text": "Smiting {t}, keeping back" }
+  ],
+  "artillery": [
+    { "if": "energyFull", "use": "ult", "on": "mostClustered", "move": "kite:4", "text": "Ultimate on the pack around {t}" },
+    { "if": "always", "use": "skill", "on": "casterFirst", "move": "kite:4", "text": "Picking off {t}" },
+    { "if": "always", "use": "basic", "on": "lowestHp", "move": "kite:4", "text": "Kiting, shooting {t}" }
+  ],
+  "area": [
+    { "if": "energyFull&clusterAt:3:1.6", "use": "ult", "on": "mostClustered", "move": "kite:4.5", "text": "Ultimate on the pack around {t}" },
+    { "if": "clusterAt:2:1.2", "use": "skill", "on": "mostClustered", "move": "kite:4.5", "text": "Burning the cluster at {t}" },
+    { "if": "always", "use": "basic", "on": "nearest", "move": "kite:4.5", "text": "Kiting, casting at {t}" }
+  ],
+  "support": [
+    { "if": "energyFull", "use": "ult", "on": "self", "move": "regroup", "text": "Ultimate for the party" },
+    { "if": "alliesInRange:2:3", "use": "skill", "on": "self", "move": "regroup", "text": "Inspiring nearby allies" },
+    { "if": "always", "use": "basic", "on": "nearest", "move": "regroup", "text": "Staying with the party, playing at {t}" }
+  ],
+  "summon": [
+    { "if": "energyFull", "use": "ult", "on": "self", "move": "kite:4", "text": "Ultimate: raising a wall of bones" },
+    { "if": "summonsBelow:2", "use": "skill", "on": "self", "move": "kite:4", "text": "Raising bones" },
+    { "if": "always", "use": "basic", "on": "nearest", "move": "kite:4", "text": "Kiting, casting at {t}" }
+  ],
+
+  "m_grunt":      [ { "if": "always", "use": "basic", "on": "nearest", "move": "charge", "text": "Charging {t}" } ],
+  "m_brute":      [ { "if": "enemiesInRange:1:1.3", "use": "skill", "on": "nearest", "move": "approach", "text": "Slamming" },
+                    { "if": "always", "use": "basic", "on": "nearest", "move": "charge", "text": "Charging {t}" } ],
+  "m_skirmisher": [ { "if": "always", "use": "skill", "on": "backline", "move": "flank", "text": "Lunging at {t}" },
+                    { "if": "always", "use": "basic", "on": "backline", "move": "flank", "text": "Flanking to {t}" } ],
+  "m_shooter":    [ { "if": "always", "use": "basic", "on": "lowestHp", "move": "kite:3.5", "text": "Shooting {t}" } ],
+  "m_caster":     [ { "if": "always", "use": "skill", "on": "mostClustered", "move": "kite:4", "text": "Casting at {t}" },
+                    { "if": "always", "use": "basic", "on": "nearest", "move": "kite:4", "text": "Bolting {t}" } ],
+  "m_mender":     [ { "if": "allyHpBelow:0.6", "use": "skill", "on": "allyLowestHpPct", "move": "regroup", "text": "Mending {t}" },
+                    { "if": "always", "use": "basic", "on": "nearest", "move": "kite:3.5", "text": "Bolting {t}" } ],
+  "m_summoner":   [ { "if": "summonsBelow:4", "use": "skill", "on": "self", "move": "kite:4", "text": "Calling minions" },
+                    { "if": "always", "use": "basic", "on": "nearest", "move": "kite:4", "text": "Bolting {t}" } ],
+  "m_guardian":   [ { "if": "enemiesInRange:1:2", "use": "skill", "on": "self", "move": "approach", "text": "Taunting" },
+                    { "if": "always", "use": "basic", "on": "nearestToAllies", "move": "screen", "text": "Guarding against {t}" } ]
+}

@@ -1,0 +1,8 @@
+{
+  "human":    { "name": "Human",    "pct": {},                                   "add": {},                                   "ruleSlots": 1, "temperament": "steady" },
+  "dwarf":    { "name": "Dwarf",    "pct": { "maxHp": 0.10 },                    "add": { "armor": 4, "move": -0.1 },         "temperament": "stubborn" },
+  "elf":      { "name": "Elf",      "pct": { "maxHp": -0.05 },                   "add": { "crit": 0.05, "accuracy": 0.05 },   "temperament": "farsighted" },
+  "halfling": { "name": "Halfling", "pct": { "power": -0.05 },                   "add": { "evasion": 0.08 },                  "temperament": "cautious" },
+  "orc":      { "name": "Orc",      "pct": { "maxHp": 0.08, "power": 0.08, "spell": -0.10 }, "add": {},                       "temperament": "rage" },
+  "goblin":   { "name": "Goblin",   "pct": { "maxHp": -0.08 },                   "add": { "move": 0.2 },                      "temperament": "panic" }
+}

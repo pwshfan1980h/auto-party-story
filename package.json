@@ -1,0 +1,25 @@
+{
+  "name": "auto-party-story",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "check": "tsc",
+    "test": "vitest run",
+    "sim": "tsx tools/sim.ts",
+    "golden": "tsx tools/golden.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/three": "^0.170.0",
+    "tsx": "^4.19.2",
+    "typescript": "5.6",
+    "vite": "^6.4.4",
+    "vitest": "^2.1.8"
+  },
+  "dependencies": {
+    "three": "^0.170.0"
+  }
+}

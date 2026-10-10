@@ -1,0 +1,274 @@
+{
+  "I": {
+    "name": "Crypt Shallows",
+    "floors": [
+      1,
+      3
+    ],
+    "biome": "crypt",
+    "heroLevel": 2,
+    "gearScore": 10,
+    "partySize": 3,
+    "field": {
+      "w": 12,
+      "h": 7,
+      "cover": [
+        2,
+        3
+      ],
+      "hazards": 0
+    },
+    "normal": {
+      "count": [
+        3,
+        5
+      ],
+      "pool": {
+        "sewer_rat": 3,
+        "ratling_slinger": 2,
+        "screech_bat": 2,
+        "shambling_bones": 3,
+        "bone_archer": 2,
+        "grave_robber": 2,
+        "rat_shaman": 1,
+        "skull_pile": 1
+      }
+    },
+    "elite": {
+      "count": [
+        2,
+        3
+      ],
+      "pool": {
+        "sewer_rat": 2,
+        "shambling_bones": 2,
+        "bone_archer": 2,
+        "grave_robber": 2
+      },
+      "elites": {
+        "giant_rat": 1,
+        "gravedigger_brute": 1,
+        "robber_captain": 1
+      }
+    },
+    "horde": {
+      "count": 50,
+      "pool": {
+        "rat_swarmling": 3,
+        "cave_bat": 2
+      },
+      "captains": {
+        "rat_shaman": 1,
+        "giant_rat": 1
+      }
+    },
+    "boss": {
+      "boss": "rat_king",
+      "adds": {
+        "sewer_rat": 3
+      }
+    },
+    "rooms": {
+      "fight": 5,
+      "elite": 1.2,
+      "treasure": 1.5,
+      "shrine": 0.8,
+      "campfire": 1.2,
+      "event": 0.8,
+      "horde": 0.6
+    },
+    "nodes": [
+      3,
+      4
+    ],
+    "named": [
+      "old_whiskers",
+      "grisla"
+    ],
+    "namedChance": 0.015,
+    "floorsPerRun": 3
+  },
+  "II": {
+    "name": "The Crypt",
+    "floors": [
+      4,
+      7
+    ],
+    "biome": "crypt",
+    "heroLevel": 5,
+    "gearScore": 20,
+    "partySize": 4,
+    "field": {
+      "w": 14,
+      "h": 8,
+      "cover": [
+        3,
+        5
+      ],
+      "hazards": 1
+    },
+    "normal": {
+      "count": [
+        4,
+        6
+      ],
+      "pool": {
+        "skeleton_warrior": 3,
+        "skeleton_archer": 2,
+        "zombie": 2,
+        "ghost": 2,
+        "cult_initiate": 2,
+        "ghoul": 1,
+        "bloated_corpse": 1,
+        "cult_priest": 1
+      }
+    },
+    "elite": {
+      "count": [
+        4,
+        5
+      ],
+      "pool": {
+        "skeleton_warrior": 2,
+        "skeleton_archer": 2,
+        "zombie": 2,
+        "ghost": 1
+      },
+      "elites": {
+        "bone_knight": 1,
+        "grave_hulk": 1,
+        "skeleton_mage": 1,
+        "bone_binder": 1
+      }
+    },
+    "horde": {
+      "count": 24,
+      "pool": {
+        "bone_servant": 4,
+        "wisp": 2
+      },
+      "captains": {
+        "bone_binder": 1,
+        "skeleton_mage": 1,
+        "bone_knight": 1
+      }
+    },
+    "boss": {
+      "boss": "bone_warden",
+      "adds": {
+        "skeleton_warrior": 2,
+        "skeleton_archer": 2
+      }
+    },
+    "rooms": {
+      "fight": 5,
+      "elite": 1.2,
+      "treasure": 1.5,
+      "shrine": 0.8,
+      "campfire": 1.2,
+      "event": 0.8,
+      "horde": 0.6
+    },
+    "nodes": [
+      4,
+      5
+    ],
+    "named": [
+      "old_whiskers",
+      "grisla"
+    ],
+    "namedChance": 0.015,
+    "floorsPerRun": 4
+  },
+  "III": {
+    "name": "Fungal Caverns",
+    "floors": [
+      8,
+      11
+    ],
+    "biome": "fungal",
+    "heroLevel": 9,
+    "gearScore": 30,
+    "partySize": 4,
+    "field": {
+      "w": 14,
+      "h": 8,
+      "cover": [
+        3,
+        6
+      ],
+      "hazards": 2
+    },
+    "normal": {
+      "count": [
+        5,
+        7
+      ],
+      "pool": {
+        "cave_spider": 3,
+        "venom_spitter": 2,
+        "goblin_cutter": 3,
+        "goblin_archer": 2,
+        "green_slime": 2,
+        "goblin_shaman": 1,
+        "goblin_sapper": 1
+      }
+    },
+    "elite": {
+      "count": [
+        6,
+        8
+      ],
+      "pool": {
+        "cave_spider": 2,
+        "goblin_cutter": 2,
+        "goblin_archer": 2,
+        "green_slime": 1
+      },
+      "elites": {
+        "brood_guard": 1,
+        "acid_slime": 1,
+        "goblin_shaman": 1
+      }
+    },
+    "horde": {
+      "count": 90,
+      "pool": {
+        "spiderling": 3,
+        "goblin_runt": 2,
+        "slimeling": 1
+      },
+      "captains": {
+        "brood_guard": 1,
+        "goblin_shaman": 1,
+        "venom_spitter": 1
+      }
+    },
+    "boss": {
+      "boss": "broodmother",
+      "adds": {
+        "cave_spider": 2,
+        "venom_spitter": 2
+      }
+    },
+    "rooms": {
+      "fight": 5,
+      "elite": 1.2,
+      "treasure": 1.5,
+      "shrine": 0.8,
+      "campfire": 1.2,
+      "event": 0.8,
+      "horde": 0.6
+    },
+    "nodes": [
+      4,
+      5
+    ],
+    "named": [
+      "old_whiskers",
+      "grisla"
+    ],
+    "namedChance": 0.015,
+    "floorsPerRun": 4
+  }
+}

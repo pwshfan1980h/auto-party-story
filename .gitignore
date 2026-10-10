@@ -4,3 +4,9 @@ dist/
 
 # Plans stay local (repo is public)
 plans/
+
+# Licensed art lives in a private repo, cloned here for local dev
+assets-private/
+
+# Sim reports
+reports/
