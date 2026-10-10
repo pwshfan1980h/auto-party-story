@@ -104,9 +104,11 @@
   "namedSignPenalty": 0.4,
   "ev": {
     "_doc": "Expected-value planning for Seasoned+ Leaders (spec 07). Hero value is what a Leader puts on losing one hero for good.",
-    "heroValuePerLevel": 60,
+    "heroValuePerLevel": 70,
+    "heroValueFloor": 250,
+    "wipeAversion": 1,
     "levelFactor": 0.75,
-    "fullPackShare": 0.35,
+    "fullPackShare": 0.2,
     "lookahead": {
       "novice": 0,
       "seasoned": 0,
@@ -115,14 +117,15 @@
     },
     "optimism": {
       "novice": 0,
-      "seasoned": 0.125,
+      "seasoned": 0.313,
       "veteran": 0,
       "master": 0
     },
-    "discount": 0.975,
+    "discount": 0.6,
     "dressing": 0.15,
+    "doctrineHeroRisk": { "_doc": "How many heroes' worth of expected loss a room may carry under each standing order before the Leader turns back.", "depth": 0.5 },
     "doctrineMargin": {
-      "balanced": -20,
+      "balanced": -40,
       "home": 25,
       "pack": -10,
       "depth": -25

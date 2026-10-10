@@ -28,14 +28,14 @@ export function fightOnce(classes: string[], tier: string, room: RoomType, seed:
 }
 
 export function runStats(tier: string, lname: string, policy: RunPolicy, S: number, l = LEADERS[lname], from = 0) {
-  let died = 0, heroes = 0, banked = 0, wipes = 0, good = 0, calls = 0, warns = 0, turnBack = 0, thisWay = 0, embers = 0, fellBack = 0, raresK = 0, raresE = 0;
+  let rooms = 0, died = 0, heroes = 0, banked = 0, wipes = 0, good = 0, calls = 0, warns = 0, turnBack = 0, thisWay = 0, embers = 0, fellBack = 0, raresK = 0, raresE = 0;
   for (let s = from; s < from + S; s++) {
     const p = party(PRESETS.starter, tier);
     p[0] = { ...p[0], raceId: l.raceId, leadership: l.leadership };
     const r = runRun({ seed: s, tier, party: p, leaderId: p[0].id, policy });
-    died += r.died.length; heroes += p.length; banked += r.banked; if (r.outcome === 'wipe') wipes++;
+    rooms += r.rooms; died += r.died.length; heroes += p.length; banked += r.banked; if (r.outcome === 'wipe') wipes++;
     for (const d of r.decisions) if (d.goodCall !== undefined) { calls++; if (d.goodCall) good++; }
     warns += r.warnings; if (r.turnBackUsed) turnBack++; thisWay += r.thisWayUsed; embers += r.embersSpent; fellBack += r.fellBack; raresK += r.rares.killed; raresE += r.rares.escaped;
   }
-  return { deathsPerHero: died / heroes, banked: banked / S, bankedPerDeath: banked / Math.max(1, died), wipe: wipes / S, goodCalls: good / Math.max(1, calls), warnings: warns / S, turnBack: turnBack / S, thisWay: thisWay / S, embers: embers / S, fellBack: fellBack / S, rares: `${raresK}/${raresE}` };
+  return { rooms: rooms / S, deathsPerHero: died / heroes, banked: banked / S, bankedPerDeath: banked / Math.max(1, died), wipe: wipes / S, goodCalls: good / Math.max(1, calls), warnings: warns / S, turnBack: turnBack / S, thisWay: thisWay / S, embers: embers / S, fellBack: fellBack / S, rares: `${raresK}/${raresE}` };
 }

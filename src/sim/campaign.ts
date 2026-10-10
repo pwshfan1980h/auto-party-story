@@ -33,7 +33,7 @@ export interface CampaignResult {
   /** [hours, average party level, tier index] after each run. */
   curve: [number, number, number][];
   /** One row per run: tier played, party's average level, outcome, heroes lost, floors reached. */
-  log: { tier: string; level: number; outcome: string; died: number; floors: number }[];
+  log: { tier: string; level: number; outcome: string; died: number; floors: number; leadership: number; doctrine: string; ended?: string }[];
   /** Runs needed after a wipe until a party at the same tier won a fight again (−1: never). */
   recoveryRuns: number[];
 }
@@ -73,10 +73,12 @@ export function runCampaign(options: CampaignOptions): CampaignResult {
       const h = hire(needs, Math.max(1, band - 2), hours);
       roster.push(h); living.push(h); recruits++;
     }
-    // pick the tier: the highest unlocked one the roster is ready for (at its hero level)
+    // pick the tier: the highest unlocked one that the party actually going is ready for
+    // (judging by the whole roster kept strong heroes farming a tier that no longer taught them anything)
     const avg = (hs: RosterHero[]) => hs.reduce((s, h) => s + h.hero.level, 0) / Math.max(1, hs.length);
+    const strongest = (n: number) => living.filter((h) => h.benched <= 0).sort((a, b) => b.hero.level - a.hero.level).slice(0, n);
     let ti = unlocked;
-    while (ti > 0 && avg(living.filter((h) => !h.benched)) < TIERS[TIER_IDS[ti]].heroLevel - opt.tierSlack) ti--;
+    while (ti > 0 && avg(strongest(TIERS[TIER_IDS[ti]].partySize)) < TIERS[TIER_IDS[ti]].heroLevel - opt.tierSlack) ti--;
     const tier = TIER_IDS[ti];
     const size = TIERS[tier].partySize;
     // a balanced party: a healer if there is one, then the strongest of the rest
@@ -93,7 +95,8 @@ export function runCampaign(options: CampaignOptions): CampaignResult {
     const r = runRun({ seed: opt.seed * 1000 + run, tier, party: party.map((h) => ({ ...h.hero, gearScore: gear })), leaderId: leader.hero.id, policy: opt.policy, doctrine, startFloor: doctrine === 'depth' ? waystone[tier] : undefined });
     outcomes[r.outcome]++;
     if (r.outcome !== 'wipe') waystone[tier] = Math.max(waystone[tier] ?? 0, r.floorsReached);
-    log.push({ tier, level: +avg(party).toFixed(1), outcome: r.outcome, died: r.died.length, floors: r.floorsReached });
+    const lastCall = r.decisions.filter((d) => d.decision === 'retreat').pop();
+    log.push({ tier, level: +avg(party).toFixed(1), outcome: r.outcome, died: r.died.length, floors: r.floorsReached, leadership: leader.hero.leadership, doctrine, ended: r.outcome === 'retreat' ? lastCall?.reason : undefined });
     hours += (r.fightSeconds / 60 + r.rooms * 0.4 + 2) / 60;
     heroRuns += party.length;
     const after = applyRun(roster, party, leader, r, tier);
