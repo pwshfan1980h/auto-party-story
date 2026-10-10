@@ -73,6 +73,7 @@
     .minimap .glyph { font: 10px var(--mono); fill: var(--fg); text-anchor: middle; }
     #bar { position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px)); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; background: rgba(20, 18, 26, 0.86); border-top: 2px solid #120c08; box-shadow: inset 0 2px 0 #7a5634; }
     #bar .sp { flex: 1; }
+    #vol { width: 90px; accent-color: var(--torch); }
     @media (max-width: 760px) { .town { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -87,6 +88,8 @@
       <button id="skip" type="button">Skip fight</button>
       <button id="cam" type="button" aria-pressed="true">Battle camera</button>
       <button id="clarity" type="button" aria-pressed="false" title="Accessibility: damage numbers">Clarity</button>
+      <button id="sound" type="button" aria-pressed="true">Sound</button>
+      <input id="vol" type="range" min="0" max="100" value="70" aria-label="Volume" />
       <span class="sp"></span>
       <button id="ledger" type="button">Skip to the ledger</button>
     </div>

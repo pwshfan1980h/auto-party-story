@@ -5,6 +5,7 @@ import type { BattleScene } from '../render/scene';
 import type { FloorMap, NodeType } from '../sim/delve';
 import type { LedgerEntry } from '../sim/run';
 import { clear, el } from './dom';
+import { sfx } from '../audio/sfx';
 
 const ROOM_NAME: Record<NodeType, string> = { start: 'Entrance', fight: 'Fight', elite: 'Elite', treasure: 'Treasure', shrine: 'Shrine', campfire: 'Campfire', event: 'Event', horde: 'Horde', stairs: 'Stairs down', boss: 'Boss' };
 const GLYPH: Record<NodeType, string> = { start: 'S', fight: '⚔', elite: '☠', treasure: '◆', shrine: '+', campfire: '△', event: '?', horde: '≋', stairs: '▼', boss: '♛' };
@@ -16,7 +17,7 @@ export class DelvePlayer {
   private wait = 0;
   private finished = false;
   speed = 0.75;
-  readonly opts: BattleOptions = { camera: 'subtle', clarity: false, torchFuel: 7 };
+  readonly opts: BattleOptions = { camera: 'subtle', clarity: false, torchFuel: 7, audio: sfx };
 
   constructor(private readonly scene: BattleScene, private readonly overlay: HTMLElement, private readonly hud: HTMLElement, private readonly out: DelveOutcome, private readonly onDone: () => void) {
     this.next();
@@ -35,11 +36,14 @@ export class DelvePlayer {
     if (this.idx >= this.entries.length) { this.finish(); return; }
     const e = this.entries[this.idx];
     this.drawHud(e);
+    // the walk there, then what the room holds
+    if (e.room !== 'start') sfx.footsteps(e.fight ? 4 : 5);
+    setTimeout(() => sfx.room(e.room), e.room === 'start' ? 0 : 900);
     if (e.fight) {
       this.replay = new BattleReplay(this.scene, e.fight, this.overlay, this.opts);
       this.wait = 0;
     } else {
-      this.wait = e.room === 'start' || e.room === 'stairs' ? 0.8 : 1.6;
+      this.wait = e.room === 'start' ? 0.8 : e.room === 'stairs' ? 2.2 : 2;
     }
   }
 

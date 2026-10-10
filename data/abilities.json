@@ -561,6 +561,17 @@
       }
     ]
   },
+  "fend_off": {
+    "name": "Fend Off",
+    "kind": "skill",
+    "range": 1.0,
+    "windup": 0.25,
+    "cooldown": 2.5,
+    "delivery": "melee",
+    "affects": "target",
+    "dodgeable": true,
+    "effects": [{"type": "damage", "dmgType": "blunt", "base": 2, "scale": 0.45}, {"type": "knockback", "dist": 0.6}]
+  },
   "m_slash": {
     "name": "Slash",
     "kind": "basic",
@@ -831,8 +842,8 @@
       },
       {
         "type": "status",
-        "status": "slow",
-        "dur": 3
+        "status": "fear",
+        "dur": 2
       }
     ]
   },

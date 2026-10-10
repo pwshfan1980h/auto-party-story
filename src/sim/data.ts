@@ -12,9 +12,10 @@ import progressionJson from '../../data/progression.json';
 import baselinesJson from '../../data/leader-baselines.json';
 import delveJson from '../../data/delve.json';
 import ordersJson from '../../data/orders.json';
+import gearJson from '../../data/gear.json';
 import type { AbilityDef, Attrs, Role, RuleDef, StatusDef, Stats } from './types';
 
-type StatBlock = Partial<Pick<Stats, 'maxHp' | 'power' | 'spell' | 'armor' | 'move' | 'crit' | 'evasion'>>;
+type StatBlock = Partial<Pick<Stats, 'maxHp' | 'power' | 'spell' | 'armor' | 'move' | 'crit' | 'evasion' | 'parry' | 'block'>>;
 
 export interface ClassDef {
   name: string;
@@ -30,6 +31,7 @@ export interface ClassDef {
   ult: string;
   ruleTemplates: string[];
   model: string;
+  gear?: GearRef;
 }
 
 export interface RaceDef {
@@ -45,6 +47,8 @@ export interface SpeciesDef {
   tags: string[];
   model: string;
   minion: string;
+  /** Fights with teeth and claws: no parry, no block, nothing to knock away. */
+  natural?: boolean;
   stats: StatBlock;
   typeMods?: Record<string, number>;
 }
@@ -52,6 +56,7 @@ export interface SpeciesDef {
 export interface ArchetypeDef {
   mult: Partial<Record<'maxHp' | 'power' | 'spell' | 'move', number>>;
   add?: Partial<Record<'armor', number>>;
+  gear?: GearRef;
   basic: string;
   skills?: string[];
   rules: string;
@@ -156,12 +161,17 @@ export const BASELINES = (baselinesJson as unknown as { table: Record<string, Re
 
 export const DELVE = delveJson as unknown as { torch: { base: number; perFloor: number }; loot: Record<string, [number, number]> };
 
+export interface WeaponDef { parry: number; block: number; disarm: number; natural?: boolean }
+export interface ShieldDef { block: number; missiles: boolean; move?: number }
+export interface GearRef { weapon: string; shield?: string }
+export const GEAR = gearJson as unknown as { weapons: Record<string, WeaponDef>; shields: Record<string, ShieldDef>; disarm: { dur: number } };
+
 export const ORDERS_DATA = ordersJson as unknown as {
   orders: Record<string, { cost: number; cooldown: number }>;
   goodBot: { mendBelowHp: number; unleashBelowHp: number; holdBelowHp: number; reserveForInterrupt: number };
 };
 
-export const PROGRESSION = progressionJson as { bot: { tierSlack: number; pushAt: number }; killXpPerLevel: number; roomClearBonus: number; xpCurve: { base: number; exponent: number }; overLevelGap: number; overLevelMult: number; underLevelMult: number; maxLevel: number };
+export const PROGRESSION = progressionJson as { defense: { parryPerAgility: number; blockPerVigor: number; cap: number }; bot: { tierSlack: number; pushAt: number }; killXpPerLevel: number; roomClearBonus: number; xpCurve: { base: number; exponent: number }; overLevelGap: number; overLevelMult: number; underLevelMult: number; maxLevel: number };
 
 export const RULES = Object.fromEntries(
   Object.entries(rulesJson).filter(([k]) => !k.startsWith('_')),
@@ -175,6 +185,12 @@ export function validateData(): string[] {
     [c.basic, ...c.skills, c.ult].forEach((a) => ability(a, `class ${id}`));
     c.ruleTemplates.forEach((t) => { if (!RULES[t]) errors.push(`class ${id}: unknown rule template ${t}`); });
   }
+  const gear = (g: GearRef | undefined, where: string) => {
+    if (g && !GEAR.weapons[g.weapon]) errors.push(`${where}: unknown weapon ${g.weapon}`);
+    if (g?.shield && !GEAR.shields[g.shield]) errors.push(`${where}: unknown shield ${g.shield}`);
+  };
+  for (const [id, c] of Object.entries(CLASSES)) gear(c.gear, `class ${id}`);
+  for (const [id, a] of Object.entries(ARCHETYPES)) gear(a.gear, `archetype ${id}`);
   for (const [id, a] of Object.entries(ARCHETYPES)) {
     [a.basic, ...(a.skills ?? [])].forEach((x) => ability(x, `archetype ${id}`));
     if (!RULES[a.rules]) errors.push(`archetype ${id}: unknown rules ${a.rules}`);

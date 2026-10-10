@@ -10,6 +10,7 @@ import { Fx } from './fx';
 import { BattleScene } from './scene';
 import { UnitView, VOXEL, type Anim } from './unitView';
 import { meshVoxels } from './voxmesh';
+import type { Sfx, Voice } from '../audio/sfx';
 import { unitMaterial } from './unitView';
 
 type Snap = [t: number, x: number, y: number, facing: number, hp: number, energy: number];
@@ -28,6 +29,11 @@ interface UnitState {
   animDur: number;
   yaw: number;
   drip: number;
+  /** Frightened right now: the only time a unit cowers and looks away. */
+  feared: boolean;
+  /** Statuses on the unit, shown as motes in the world. */
+  statuses: string[];
+  moteT: number;
   shadow: THREE.Mesh;
 }
 
@@ -39,7 +45,28 @@ export interface BattleOptions {
   /** Accessibility: HP pips and damage numbers (off by default, DESIGN §0). */
   clarity: boolean;
   torchFuel: number;
+  /** Sound for the fight; silent when omitted. */
+  audio?: Sfx;
 }
+
+const VOICES: Record<string, Voice> = { fire: 'fire', frost: 'frost', shadow: 'shadow', holy: 'holy', storm: 'storm', poison: 'poison' };
+/** Which sound family an ability belongs to, from what it deals. */
+function voiceOf(ability: string): Voice {
+  const ab = ABILITIES[ability];
+  if (!ab) return 'phys';
+  if (ab.friendly) return 'holy';
+  const dmg = ab.effects.find((x) => x.type === 'damage') as { dmgType?: string } | undefined;
+  return VOICES[dmg?.dmgType ?? ''] ?? 'phys';
+}
+const STEEL = [0xe8eef4, 0xb8c2cc, 0xffd890];
+const STATUS_MOTES: Record<string, { c: number; y: number; grav: number; every: number }> = {
+  fear: { c: 0x6a4a9a, y: 1.15, grav: -1.2, every: 0.18 },
+  stun: { c: 0xf0d060, y: 1.1, grav: 0, every: 0.15 },
+  burn: { c: 0xff8a3c, y: 0.5, grav: -2.5, every: 0.12 },
+  poison: { c: 0x8ef06a, y: 0.6, grav: 3, every: 0.25 },
+  slow: { c: 0xa6e0ff, y: 0.1, grav: -0.5, every: 0.3 },
+  ward: { c: 0x7ae8ff, y: 0.6, grav: -0.3, every: 0.35 },
+};
 
 export class BattleReplay {
   readonly result: FightResult;
@@ -51,6 +78,7 @@ export class BattleReplay {
   private cine: { t: number; dur: number; at: THREE.Vector3 } | null = null;
   private lastCine = -99;
   private freeze = 0;
+  private readonly blasts = new Set<string>();
   private torchDropped: THREE.Vector3 | null = null;
   private readonly root = new THREE.Group();
   private readonly fight: Fight;
@@ -98,7 +126,7 @@ export class BattleReplay {
     const team = e.team as number;
     // start from the spawn position, so units are on the field from their first frame
     if (!snaps.length || snaps[0][0] > e.t) snaps.unshift([e.t, e.x as number, e.y as number, team ? Math.PI : 0, e.maxHp as number, 0]);
-    this.units.set(id, { id, view, model, team, maxHp: e.maxHp as number, snaps, alive: true, downed: false, anim: null, animStart: 0, animDur: 0, yaw: team ? -Math.PI / 2 : Math.PI / 2, drip: 0, shadow });
+    this.units.set(id, { id, view, model, team, maxHp: e.maxHp as number, snaps, alive: true, downed: false, anim: null, animStart: 0, animDur: 0, yaw: team ? -Math.PI / 2 : Math.PI / 2, drip: 0, feared: false, statuses: [], moteT: 0, shadow });
   }
 
   /** Interpolated [x, y, hp, energy] for a unit at time t. */
@@ -111,6 +139,39 @@ export class BattleReplay {
     while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (s[mid][0] <= t) lo = mid; else hi = mid; }
     const a = s[lo], b = s[hi], k = (t - a[0]) / (b[0] - a[0] || 1);
     return [a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k, a[4] + (b[4] - a[4]) * k, a[5] + (b[5] - a[5]) * k];
+  }
+
+  /** Where a unit sits left to right on screen, for stereo panning. */
+  private panOf(id: unknown): number {
+    const u = this.units.get(id as string);
+    if (!u || !u.snaps.length) return 0;
+    const [x, y] = this.sample(u, this.t);
+    return this.world(x, y).project(this.scene.camera).x;
+  }
+
+  /** The point just in front of a unit's chest: where blades meet shields. */
+  private front(u: UnitState, h = 0.45): THREE.Vector3 {
+    const [x, y] = this.sample(u, this.t);
+    return this.world(x, y, h).add(new THREE.Vector3(Math.sin(u.yaw) * 0.22, 0, Math.cos(u.yaw) * 0.22));
+  }
+
+  private play(u: UnitState | undefined, anim: Anim, dur: number) {
+    if (!u || u.downed || !u.alive) return;
+    u.anim = anim; u.animStart = this.t; u.animDur = dur;
+  }
+
+  private sparks(at: THREE.Vector3, colors: number[], n: number, spread = 6) {
+    this.fx.burst(at, Array.from({ length: n }, () => ({ x: (Math.random() - 0.5) * spread, y: Math.random() * spread * 0.8, z: (Math.random() - 0.5) * spread, c: colors[Math.floor(Math.random() * colors.length)] })), 0.022, { life: 0.45, up: 1.4, grav: 5, spread: 1.6 });
+  }
+
+  /** The sim's facing at time t, as a yaw: units face whoever they're defending against. */
+  private facing(u: UnitState, t: number): number {
+    const s = u.snaps;
+    let lo = 0, hi = s.length - 1;
+    if (t >= s[hi][0]) lo = hi;
+    else while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (s[mid][0] <= t) lo = mid; else hi = mid; }
+    const a = s[lo][3];
+    return Math.atan2(Math.cos(a), Math.sin(a));
   }
 
   private world(x: number, y: number, h = 0): THREE.Vector3 {
@@ -145,15 +206,56 @@ export class BattleReplay {
   private act(u: UnitState, ability: string, dur: number) {
     const ab = ABILITIES[ability];
     const friendly = ab?.friendly;
-    u.anim = u.model.style === 'caster' || friendly ? 'cast' : u.model.style === 'ranged' ? 'shoot' : 'attack';
+    // a melee strike is a swing whoever makes it: casters bring the staff round, archers the bow
+    u.anim = ab?.delivery === 'melee' ? 'attack' : u.model.style === 'caster' || friendly ? 'cast' : u.model.style === 'ranged' ? 'shoot' : 'attack';
     u.animStart = this.t;
     u.animDur = Math.max(0.35, dur + 0.3);
   }
 
   private apply(e: SimEvent) {
     const U = (id: unknown) => this.units.get(id as string);
+    const A = this.opts.audio;
     switch (e.type) {
-      case 'windup': { const u = U(e.unit); if (u) this.act(u, e.ability as string, e.dur as number); break; }
+      case 'windup': {
+        const u = U(e.unit); if (!u) break;
+        this.act(u, e.ability as string, e.dur as number);
+        const ab = ABILITIES[e.ability as string], v = voiceOf(e.ability as string), pan = this.panOf(e.unit);
+        if (ab?.delivery === 'melee') A?.whoosh(pan, ab.kind !== 'basic');
+        else if (v !== 'phys' && (e.dur as number) > 0.15) {
+          A?.cast(v, pan, Math.min(1.6, 0.6 + (e.dur as number)));
+          // magic gathering in the hands, in the element's colour
+          const at = this.front(u, 0.55);
+          const c = ab?.friendly ? 0x9ef07a : DMG_COLOR[(ab?.effects.find((x) => x.type === 'damage') as { dmgType?: string } | undefined)?.dmgType ?? ''] ?? 0xc77aff;
+          this.fx.burst(at, Array.from({ length: 12 }, () => ({ x: (Math.random() - 0.5) * 16, y: (Math.random() - 0.5) * 10, z: (Math.random() - 0.5) * 16, c })), 0.02, { life: Math.max(0.3, e.dur as number), up: -1, grav: -0.5, spread: -0.6 });
+          this.fx.flash(at, c, 1.2, 2.2, Math.max(0.2, e.dur as number));
+        }
+        break;
+      }
+      case 'block': {
+        const d = U(e.dst), a = U(e.src); if (!d) break;
+        this.play(d, 'block', 0.45); this.play(a, 'stagger', 0.35);
+        this.sparks(this.front(d), STEEL, 10);
+        A?.block(this.panOf(e.dst));
+        break;
+      }
+      case 'parry': {
+        const d = U(e.dst), a = U(e.src); if (!d) break;
+        this.play(d, 'parry', 0.4); this.play(a, 'stagger', 0.45);
+        const at = this.front(d, 0.55);
+        this.sparks(at, [0xffe8a0, 0xffd060, 0xffffff], 14, 8);
+        this.fx.flash(at, 0xffd890, 1.4, 1.6, 0.15);
+        A?.parry(this.panOf(e.dst));
+        break;
+      }
+      case 'dash': A?.whoosh(this.panOf(e.unit), true); break;
+      case 'summon': A?.summon(this.panOf(e.owner)); break;
+      case 'interrupted': { A?.clang(this.panOf(e.unit)); this.play(U(e.unit), 'stagger', 0.4); break; }
+      case 'status': {
+        const u = U(e.unit);
+        if (u && Array.isArray(e.statuses)) { u.statuses = e.statuses as string[]; u.feared = u.statuses.includes('fear'); }
+        else if (u && typeof e.add === 'string') { if (!u.statuses.includes(e.add)) u.statuses.push(e.add); if (e.add === 'fear') u.feared = true; }
+        break;
+      }
       case 'proj': {
         const u = U(e.unit); if (!u) break;
         const [x, y] = this.sample(u, this.t);
@@ -161,9 +263,15 @@ export class BattleReplay {
         const ab = ABILITIES[e.ability as string];
         const dmg = ab?.effects.find((x) => x.type === 'damage') as { dmgType?: string } | undefined;
         this.fx.projectile(this.world(x, y, 0.5), this.world(to[0], to[1], 0.45), e.dur as number, ab?.friendly ? 0x9ef07a : DMG_COLOR[dmg?.dmgType ?? 'pierce'] ?? 0xe8dcc0);
+        A?.launch(voiceOf(e.ability as string), this.panOf(e.unit));
         break;
       }
-      case 'telegraph': this.fx.telegraph(this.world(e.x as number, e.y as number), e.r as number, e.dur as number); break;
+      case 'telegraph': {
+        const at = this.world(e.x as number, e.y as number);
+        this.fx.telegraph(at, e.r as number, e.dur as number);
+        A?.rumble(at.clone().project(this.scene.camera).x);
+        break;
+      }
       case 'hit': {
         const u = U(e.dst); if (!u || !u.alive) break;
         const [x, y] = this.sample(u, this.t);
@@ -173,14 +281,28 @@ export class BattleReplay {
         const vox = allVoxels(u.model);
         const chips = Array.from({ length: e.crit ? 18 : 8 }, () => vox[Math.floor(Math.random() * vox.length)]);
         this.fx.burst(at, chips, VOXEL * u.model.scale * 1.4, { life: 0.9, up: 0.6, yaw: u.yaw });
-        const spark = DMG_COLOR[e.type as string] ?? 0xf0e0c0;
+        const spark = DMG_COLOR[e.dmgType as string] ?? 0xf0e0c0;
         this.fx.burst(at.clone().setY(0.4), Array.from({ length: e.crit ? 10 : 4 }, () => ({ x: (Math.random() - 0.5) * 6, y: Math.random() * 6, z: (Math.random() - 0.5) * 6, c: spark })), 0.025, { life: 0.4, up: 1, grav: 4 });
         if (e.crit) { this.freeze = 0.06; this.scene.shake(0.02, 0.1); }
+        // an area spell lands once, however many it catches: a blast you can see and feel
+        const ab = ABILITIES[e.ability as string], voice = voiceOf(e.ability as string), pan = this.panOf(e.dst);
+        const key = `${e.ability}@${e.t}`;
+        if (ab?.area && !this.blasts.has(key)) {
+          this.blasts.add(key);
+          const c = DMG_COLOR[e.dmgType as string] ?? 0xffa040;
+          const centre = typeof e.cx === 'number' ? this.world(e.cx as number, e.cy as number) : at;
+          this.fx.shockwave(centre, (ab.area.r ?? 1.5) * 1.1, c, 0.5);
+          this.fx.flash(centre.clone().setY(0.6), c, 4, 5, 0.4);
+          this.sparks(centre.clone().setY(0.2), [c, 0x3a3240, 0x6a6074], 22, 14);
+          this.scene.shake(0.035, 0.22);
+          A?.explosion(pan, Math.min(1.5, 0.7 + (ab.area.r ?? 1) * 0.25), voice);
+        } else if (!ab?.area) A?.impact(voice, pan, !!e.crit);
         if (this.opts.clarity && (e.dmg as number) > 0) this.label(String(e.dmg), at.clone().setY(1.1), e.crit ? 'num crit' : 'num');
         break;
       }
       case 'heal': {
         const u = U(e.dst); if (!u) break;
+        A?.heal(this.panOf(e.dst));
         const [x, y] = this.sample(u, this.t);
         this.fx.burst(this.world(x, y), Array.from({ length: 10 }, () => ({ x: (Math.random() - 0.5) * 14, y: Math.random() * 10, z: (Math.random() - 0.5) * 14, c: 0x9ef07a })), 0.03, { life: 0.9, up: 0.3, grav: -1.5 });
         if (this.opts.clarity) this.label(`+${e.amount}`, this.world(x, y, 1.1), 'num heal');
@@ -188,17 +310,22 @@ export class BattleReplay {
       }
       case 'miss': {
         const u = U(e.dst); if (!u) break;
+        if (e.reason === 'dodge') this.play(u, 'dodge', 0.35);
+        A?.whoosh(this.panOf(e.dst));
         const [x, y] = this.sample(u, this.t);
         this.fx.burst(this.world(x, y), Array.from({ length: 6 }, () => ({ x: (Math.random() - 0.5) * 10, y: 0, z: (Math.random() - 0.5) * 10, c: 0x6e687a })), 0.03, { life: 0.5, up: -0.4, grav: 3 });
         break;
       }
-      case 'downed': { const u = U(e.unit); if (u) { u.downed = true; u.anim = 'downed'; } break; }
-      case 'revive': { const u = U(e.dst); if (u) { u.downed = false; u.anim = 'celebrate'; u.animStart = this.t; u.animDur = 0.6; } break; }
+      case 'downed': { const u = U(e.unit); if (u) { u.downed = true; u.anim = 'downed'; A?.downed(this.panOf(e.unit)); } break; }
+      case 'revive': { const u = U(e.dst); if (u) { u.downed = false; u.anim = 'celebrate'; u.animStart = this.t; u.animDur = 0.6; A?.heal(this.panOf(e.dst), true); } break; }
       case 'death': case 'escaped': {
         const u = U(e.unit); if (!u || !u.alive) break;
         u.alive = false;
         const [x, y] = this.sample(u, Math.max(0, this.t - 0.05));
-        if (e.type === 'death') this.fx.burst(this.world(x, y), allVoxels(u.model), VOXEL * u.model.scale, { life: 2.4, yaw: u.yaw, spread: 1.2 });
+        if (e.type === 'death') {
+          this.fx.burst(this.world(x, y), allVoxels(u.model), VOXEL * u.model.scale, { life: 2.4, yaw: u.yaw, spread: 1.2 });
+          A?.death(this.panOf(e.unit), /skeleton|bone|skull/.test(u.model.id));
+        }
         u.view.root.visible = false;
         if (this.setup.leader?.heroId === u.id) this.torchDropped = this.world(x, y, 0.15);
         break;
@@ -208,6 +335,7 @@ export class BattleReplay {
         const [x, y] = this.sample(u, this.t);
         const ab = ABILITIES[e.ability as string];
         this.banner((ab?.name ?? 'Ultimate').toUpperCase());
+        A?.ult(this.panOf(e.unit), voiceOf(e.ability as string));
         this.startCine(this.world(x, y));
         this.scene.shake(0.03, 0.15);
         break;
@@ -221,6 +349,7 @@ export class BattleReplay {
       }
       case 'end': {
         const r = e.result as string;
+        A?.ending(r === 'victory');
         this.banner(r === 'victory' ? 'VICTORY' : r === 'fled' ? 'FELL BACK' : 'WIPED', r === 'victory' ? 'The way on is clear' : r === 'fled' ? 'The party got out' : 'The dark takes them');
         this.startCine(new THREE.Vector3(), true);
         break;
@@ -257,17 +386,31 @@ export class BattleReplay {
       const p = this.world(x, y);
       u.view.root.position.copy(p);
       const vx = x2 - x, vy = y2 - y, moving = Math.hypot(vx, vy) > 0.03;
-      // what the rig shows: an action, a flinch, walking, or crouching between actions
-      let anim: Anim = moving ? 'walk' : 'crouch', prog = 0;
+      // what the rig shows: an action, a flinch, walking, a ready stance, or cowering in fear
+      let anim: Anim = u.feared ? (moving ? 'walk' : 'cower') : moving ? 'walk' : 'ready', prog = 0;
       if (u.downed) anim = 'downed';
       else if (u.anim && this.t - u.animStart < u.animDur) { anim = u.anim; prog = (this.t - u.animStart) / u.animDur; }
       u.view.pose(anim, this.t, prog);
       // hurt posture: lean in proportion to wounds
       const hpR = hp / u.maxHp;
       if (!u.downed && hpR < 0.5) { const torso = u.view.parts.get('torso'); if (torso) torso.rotation.x += 0.35 * (1 - hpR); }
-      // face where they're going, or where they're acting
-      if (moving && !u.downed) { const want = Math.atan2(vx, vy); let d = want - u.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); u.yaw += d * Math.min(1, dt * 10 + 0.05); }
+      // face the threat (the sim decides); kiters backpedal with their eyes on the enemy
+      if (!u.downed) { const want = this.facing(u, this.t); let d = want - u.yaw; d = Math.atan2(Math.sin(d), Math.cos(d)); u.yaw += d * Math.min(1, dt * 12 + 0.05); }
       u.view.root.rotation.y = u.yaw;
+      // statuses show in the world: wisps of fear, a stunned daze, embers, drips of poison
+      if (u.statuses.length && !u.downed) {
+        u.moteT -= dt;
+        if (u.moteT <= 0) {
+          let next = 1;
+          for (const st of u.statuses) {
+            const m = STATUS_MOTES[st]; if (!m) continue;
+            next = Math.min(next, m.every);
+            const at = p.clone().add(new THREE.Vector3((Math.random() - 0.5) * 0.3, m.y * u.model.scale, (Math.random() - 0.5) * 0.3));
+            this.fx.burst(at, [{ x: 0, y: 0, z: 0, c: m.c }, { x: 4, y: 2, z: -3, c: m.c }], 0.03, { life: 0.7, up: -1.2, grav: m.grav, spread: 0.4 });
+          }
+          u.moteT = next;
+        }
+      }
       // badly hurt units bleed
       if ((hpR < 0.4 || u.downed) && u.team === 0) {
         u.drip -= dt;

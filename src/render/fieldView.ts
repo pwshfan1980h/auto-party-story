@@ -1,7 +1,7 @@
 // The battlefield as voxels: flagstone floor with cliff edges, authored cover pieces, hazards and dressing.
 import * as THREE from 'three';
 import { PartBuilder, shade, unkey, type Color } from '../art/kit';
-import { P } from '../art/palette';
+import { grade, P } from '../art/palette';
 import { NAV, type Field } from '../sim/field';
 import { stream } from '../sim/rng';
 import { meshVoxels } from './voxmesh';
@@ -28,7 +28,7 @@ function floor(f: Field, seed: number): THREE.Mesh {
   const rng = stream(seed, 'floor-look');
   const solid = (x: number, y: number) => x >= 0 && y >= 0 && x < f.w && y < f.h && f.tiles[y * f.w + x] !== 0;
   const pos: number[] = [], nor: number[] = [], col: number[] = [];
-  const lin = (c: number, s: number) => [Math.pow(((c >> 16) & 255) / 255, 2.2) * s, Math.pow(((c >> 8) & 255) / 255, 2.2) * s, Math.pow((c & 255) / 255, 2.2) * s];
+  const lin = (c0: number, s: number) => { const c = grade(c0); return [Math.pow(((c >> 16) & 255) / 255, 2.2) * s, Math.pow(((c >> 8) & 255) / 255, 2.2) * s, Math.pow((c & 255) / 255, 2.2) * s]; };
   const quad = (a: number[], b: number[], c: number[], d: number[], n: number[], color: number, s: number) => {
     const rgb = lin(color, s);
     for (const v of [a, b, c, a, c, d]) { pos.push(...v); nor.push(...n); col.push(...rgb); }

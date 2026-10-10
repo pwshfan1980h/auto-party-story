@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import { unkey, type Color } from '../art/kit';
 
 const SHADE = [0.86, 0.78, 1.0, 0.55, 0.92, 0.72]; // +x, -x, +y, -y, +z, -z
+import { grade } from '../art/palette';
+
 const toLinear = (v: number) => Math.pow(v / 255, 2.2);
 
 export function meshVoxels(voxels: Map<number, Color>, offset: [number, number, number] = [0, 0, 0]): THREE.BufferGeometry {
@@ -61,7 +63,8 @@ export function meshVoxels(voxels: Map<number, Color>, offset: [number, number, 
           ];
           const order = dir > 0 ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2];
           const n = [0, 0, 0]; n[d] = dir;
-          const r = toLinear((c >> 16) & 255) * shadeF, g = toLinear((c >> 8) & 255) * shadeF, bl = toLinear(c & 255) * shadeF;
+          const gc = grade(c);
+          const r = toLinear((gc >> 16) & 255) * shadeF, g = toLinear((gc >> 8) & 255) * shadeF, bl = toLinear(gc & 255) * shadeF;
           for (const o of order) {
             const cn = corners[o];
             pos.push(cn[0] + x0 - offset[0], cn[1] + y0 - offset[1], cn[2] + z0 - offset[2]);

@@ -1,0 +1,24 @@
+{
+  "_doc": "What units carry, and what it lets them do. Shields drive block (some also stop missiles); weapons parry, block a little, and a few can disarm. Natural weapons (teeth, claws) can't parry, block or be knocked away. Skill grows these from the floor set here.",
+  "weapons": {
+    "sword":        { "parry": 0.10, "block": 0.04, "disarm": 0.03 },
+    "dagger":       { "parry": 0.08, "block": 0.00, "disarm": 0.06 },
+    "swordbreaker": { "parry": 0.14, "block": 0.00, "disarm": 0.14 },
+    "axe":          { "parry": 0.03, "block": 0.04, "disarm": 0.00 },
+    "club":         { "parry": 0.02, "block": 0.05, "disarm": 0.00 },
+    "mace":         { "parry": 0.04, "block": 0.04, "disarm": 0.00 },
+    "spear":        { "parry": 0.07, "block": 0.05, "disarm": 0.03 },
+    "staff":        { "parry": 0.05, "block": 0.06, "disarm": 0.02 },
+    "bow":          { "parry": 0.00, "block": 0.02, "disarm": 0.00 },
+    "lute":         { "parry": 0.00, "block": 0.03, "disarm": 0.00 },
+    "flask":        { "parry": 0.00, "block": 0.00, "disarm": 0.00 },
+    "natural":      { "parry": 0.00, "block": 0.00, "disarm": 0.00, "natural": true }
+  },
+  "shields": {
+    "buckler": { "block": 0.12, "missiles": false },
+    "round":   { "block": 0.18, "missiles": true },
+    "kite":    { "block": 0.24, "missiles": true },
+    "tower":   { "block": 0.32, "missiles": true, "move": -0.1 }
+  },
+  "disarm": { "dur": 3 }
+}
