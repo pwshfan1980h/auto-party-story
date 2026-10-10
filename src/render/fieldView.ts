@@ -3,11 +3,14 @@ import * as THREE from 'three';
 import { PartBuilder, shade, unkey, type Color } from '../art/kit';
 import { grade, P } from '../art/palette';
 import { NAV, type Field } from '../sim/field';
+import { HAZARDS } from '../sim/data';
 import { stream } from '../sim/rng';
 import { meshVoxels } from './voxmesh';
 import { unitMaterial, VOXEL } from './unitView';
 
 const T = 32; // design units per tile (the kit's design scale)
+/** Floor stone under each kind of ground hazard. */
+const HAZARD_FLOOR: Record<string, number> = { spore_vent: 0x4a5a3a, spikes: 0x5a4848, fire: 0x4a2418, acid: 0x3e5a24, miasma_pit: 0x3a4430 };
 
 /** World position of tile coordinates: the field is centred on the origin. */
 export function tileToWorld(f: Field, x: number, y: number): [number, number] {
@@ -36,11 +39,11 @@ function floor(f: Field, seed: number): THREE.Mesh {
   const top = 3, mortar = 1;
   for (let ty = 0; ty < f.h; ty++) for (let tx = 0; tx < f.w; tx++) {
     if (!solid(tx, ty)) continue;
-    const hazard = f.hazards.find((h) => h.cells.includes(ty * f.w + tx));
+    const hazard = f.hazards.find((h) => h.cells.includes(ty * f.w + tx) && HAZARDS.ground[h.kind]?.tile !== false);
     for (let sy = 0; sy < 2; sy++) for (let sx = 0; sx < 2; sx++) {
       // one stone: a raised slab with a 1-voxel mortar gap around it
       const tint = 0.82 + rng.next() * 0.3;
-      const base = hazard ? (hazard.kind === 'spore_vent' ? 0x4a5a3a : 0x5a4848) : rng.chance(0.08) ? 0x4e4a5c : 0x5e5a6e;
+      const base = hazard ? (HAZARD_FLOOR[hazard.kind] ?? 0x5a4848) : rng.chance(0.08) ? 0x4e4a5c : 0x5e5a6e;
       const c = shade(base, tint);
       const x0 = tx * T + sx * 16 + 1, z0 = ty * T + sy * 16 + 1, x1 = x0 + 14, z1 = z0 + 14;
       const y = rng.chance(0.15) ? top - 1 : top;

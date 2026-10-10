@@ -7,6 +7,7 @@ import { ABILITIES } from '../sim/data';
 import { Fight, type FightResult, type FightSetup, type OrderKind, type SimEvent } from '../sim/fight';
 import { buildField, brazier, tileToWorld } from './fieldView';
 import { Fx } from './fx';
+import { HazardView } from './hazardView';
 import { BattleScene } from './scene';
 import { UnitView, VOXEL, type Anim } from './unitView';
 import { meshVoxels } from './voxmesh';
@@ -66,6 +67,8 @@ const STATUS_MOTES: Record<string, { c: number; y: number; grav: number; every: 
   poison: { c: 0x8ef06a, y: 0.6, grav: 3, every: 0.25 },
   slow: { c: 0xa6e0ff, y: 0.1, grav: -0.5, every: 0.3 },
   ward: { c: 0x7ae8ff, y: 0.6, grav: -0.3, every: 0.35 },
+  acid: { c: 0x9ad04a, y: 0.15, grav: 2, every: 0.2 },
+  bleed: { c: 0x8a1a1a, y: 0.4, grav: 4, every: 0.3 },
 };
 
 export class BattleReplay {
@@ -77,6 +80,8 @@ export class BattleReplay {
   private readonly snapsById = new Map<string, Snap[]>();
   readonly events: SimEvent[];
   readonly fx: Fx;
+  private readonly hazards: HazardView;
+  private crackle = 0;
   private readonly units = new Map<string, UnitState>();
   private evIdx = 0;
   t = 0;
@@ -97,6 +102,7 @@ export class BattleReplay {
     scene.world.add(this.root);
     this.root.add(buildField(f, setup.seed).group);
     this.fx = new Fx(this.root);
+    this.hazards = new HazardView(this.root, f);
     // the party's brazier marks where they came in
     const b = new THREE.Mesh(meshVoxels(brazier().voxels), unitMaterial);
     b.scale.setScalar(VOXEL);
@@ -113,6 +119,7 @@ export class BattleReplay {
     const ev = this.events;
     for (let i = this.ingested; i < ev.length; i++) {
       const e = ev[i];
+      if (e.type === 'air') this.hazards.push(e.t, e.g as Record<string, number[]>);
       if (e.type === 'pos') for (const row of e.u as (string | number)[][]) {
         const [id, x, y, fa, hp, en] = row as [string, number, number, number, number, number];
         (snaps.get(id) ?? snaps.set(id, []).get(id)!).push([e.t, x, y, fa, hp, en]);
@@ -145,7 +152,7 @@ export class BattleReplay {
     return best;
   }
 
-  dispose() { this.scene.world.remove(this.root); this.fx.clear(); this.overlay.querySelectorAll('.fx-label').forEach((n) => n.remove()); }
+  dispose() { this.hazards.dispose(this.root); this.scene.world.remove(this.root); this.fx.clear(); this.overlay.querySelectorAll('.fx-label').forEach((n) => n.remove()); }
 
   get done() { return this.evIdx >= this.events.length && (!this.live || this.fight.over); }
 
@@ -291,7 +298,11 @@ export class BattleReplay {
       case 'status': {
         const u = U(e.unit);
         if (u && Array.isArray(e.statuses)) { u.statuses = e.statuses as string[]; u.feared = u.statuses.includes('fear'); }
-        else if (u && typeof e.add === 'string') { if (!u.statuses.includes(e.add)) u.statuses.push(e.add); if (e.add === 'fear') u.feared = true; }
+        else if (u && typeof e.add === 'string') {
+          if (!u.statuses.includes(e.add)) u.statuses.push(e.add);
+          if (e.add === 'fear') u.feared = true;
+          if (e.add === 'acid') A?.sizzle(this.panOf(e.unit));
+        }
         break;
       }
       case 'proj': {
@@ -420,6 +431,9 @@ export class BattleReplay {
     }
     while (this.evIdx < this.events.length && this.events[this.evIdx].t <= this.t) this.apply(this.events[this.evIdx++]);
     this.fx.update(dt);
+    this.hazards.update(this.t);
+    // burning tiles crackle now and then
+    if (this.hazards.hasFire && this.opts.audio) { this.crackle -= dt; if (this.crackle <= 0) { this.crackle = 1.5 + Math.random() * 2; this.opts.audio.crackle(); } }
 
     for (const u of this.units.values()) {
       const visible = u.alive && u.snaps.length > 0 && this.t >= u.snaps[0][0] - 0.01;

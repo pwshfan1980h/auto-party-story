@@ -1,6 +1,7 @@
 // The real-time fight: a fixed 20 Hz tick loop with no rendering (spec 02).
 // Phases per tick: timers → projectiles/telegraphs → decisions → movement → actions → deaths/end.
-import { ABILITIES, ARCHETYPES, CLASSES, ENEMIES, GEAR, ORDERS_DATA, RULES, SPECIES, STATUSES, TIERS } from './data';
+import { ABILITIES, ARCHETYPES, CLASSES, ENEMIES, GEAR, HAZARDS, ORDERS_DATA, RULES, SPECIES, STATUSES, TIERS } from './data';
+import { Air } from './air';
 import { flowDir, flowField, generateField, lineOfSight, SpatialHash, walkableAt, type Field } from './field';
 import { hash32, stream, type Rng } from './rng';
 import { autoAttrs, heroStats, monsterStats, rollDamage } from './stats';
@@ -192,6 +193,8 @@ export function mergeTemplates(names: string[]): RuleDef[] {
 
 export class Fight {
   readonly field: Field;
+  /** Fog, smoke and miasma drifting over the field. */
+  readonly air: Air;
   readonly units: Unit[] = [];
   readonly events: SimEvent[] = [];
   private tick = 0;
@@ -244,6 +247,7 @@ export class Fight {
       w: tier.field.w + (horde ? 8 : big ? 4 : 0), h: tier.field.h + (horde ? 4 : big ? 2 : 0),
       cover: tier.field.cover, hazards: tier.field.hazards,
     });
+    this.air = new Air(this.field, stream(setup.seed, 'air', ...key));
     const spawnRng = stream(setup.seed, 'spawn', ...key);
     for (const h of setup.heroes) this.addHero(h, spawnRng);
     for (const m of setup.monsters) {
@@ -413,6 +417,12 @@ export class Fight {
     this.timers(ordered);
     this.flying();
     if (this.tick % 10 === 0) { this.leaderCalls(); this.policyOrders(); }
+    const airEvery = Math.max(1, Math.round(TICKS_PER_S / HAZARDS.air.hz));
+    if (this.tick % airEvery === 0 && this.air.any) {
+      for (const u of this.units) if (u.alive && (u.vx || u.vy)) this.air.stir(u.x, u.y, u.vx, u.vy);
+      this.air.update(airEvery * TICK);
+      if (this.full) this.emit('air', { g: this.air.snapshot() }, true);
+    }
     if (this.fleeUntil && this.tick >= this.fleeUntil) this.resolveFallBack();
     for (const u of ordered) {
       const cadence = u.minion ? 8 : 4;
@@ -746,7 +756,10 @@ export class Fight {
   }
 
   private hitRoll(u: Unit, t: Unit, ab: AbilityDef): boolean {
-    const chance = Math.min(1, Math.max(0.1, u.base.accuracy - this.stat(t, 'evasion')));
+    // fog and smoke spoil a shot from or into them
+    let murk = 0;
+    if (ab.delivery === 'projectile') for (const [gas, def] of Object.entries(HAZARDS.gases)) if (def.rangedMiss) murk += def.rangedMiss * Math.max(this.air.at(gas, u.x, u.y), this.air.at(gas, t.x, t.y));
+    const chance = Math.min(1, Math.max(0.1, u.base.accuracy - this.stat(t, 'evasion') - murk));
     if (this.combat.next() < chance) return true;
     u.s.misses++;
     this.emit('miss', { src: u.id, dst: t.id, ability: ab.id, reason: 'dodge' });
@@ -816,6 +829,8 @@ export class Fight {
     const team = ab.affects === 'allies' ? u.team : 1 - u.team;
     const area = ab.area ?? { shape: 'circle', r: 1, at: 'self' };
     const ox = area.at === 'self' ? u.x : cx, oy = area.at === 'self' ? u.y : cy;
+    // a hostile blast throws the air back from where it lands
+    if (ab.area && !ab.friendly && this.air.any) this.air.blast(ox, oy, area.r ?? 1);
     const out: Unit[] = [];
     for (const o of this.hash.query(ox, oy, area.r + 0.6)) {
       if (o.team !== team || !o.alive || (o.downedLeft > 0 && team !== u.team)) continue;
@@ -1047,9 +1062,11 @@ export class Fight {
     const c = Math.floor(u.y) * this.field.w + Math.floor(u.x);
     for (const hz of this.field.hazards) {
       if (!hz.cells.includes(c)) continue;
-      if (hz.kind === 'spikes') this.addStatus(u, 'bleed', 2, u, 1);
-      if (hz.kind === 'spore_vent') this.addStatus(u, 'poison', 2, u, 1);
+      const def = HAZARDS.ground[hz.kind];
+      if (def?.status) this.addStatus(u, def.status, def.dur ?? 2, u, 1);
     }
+    // standing in thick enough gas
+    for (const [gas, def] of Object.entries(HAZARDS.gases)) if (def.status && this.air.at(gas, u.x, u.y) >= (def.statusAt ?? 0.5)) this.addStatus(u, def.status, def.dur ?? 2, u, 1);
   }
 
   // ----- Leader combat calls (spec 07) -----

@@ -255,6 +255,20 @@ export class Sfx {
     else { this.tone(o, t, 2.2, 0.2, 'sawtooth', 82, 41, 0.3, -10); this.tone(o, t, 2.2, 0.15, 'sawtooth', 82, 41, 0.3, 10); }
   }
 
+  /** A burning tile: a few dry pops over a low roar. */
+  crackle() {
+    if (!this.gate('crackle', 0.8)) return;
+    const t = this.now, o = this.out((Math.random() - 0.5) * 0.8, 0.3);
+    for (let i = 0; i < 6; i++) this.noise(o, t + Math.random() * 0.6, 0.025, 0.1, 'bandpass', 1400 + Math.random() * 700, 900, 2, 0.001);
+    this.noise(o, t, 0.9, 0.06, 'lowpass', 300, 200, 0.7, 0.2);
+  }
+
+  /** Acid eating into armour and skin: a wet hiss. */
+  sizzle(pan: number) {
+    if (!this.gate('sizzle', 0.3)) return;
+    this.noise(this.out(pan, 0.15), this.now, 0.45, 0.16, 'bandpass', 2200, 1400, 3, 0.01);
+  }
+
   // ---------- the delve ----------
 
   /** The party walking between rooms: boots on stone, softly panned. */

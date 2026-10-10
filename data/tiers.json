@@ -16,7 +16,7 @@
         2,
         3
       ],
-      "hazards": 0
+      "hazards": 1
     },
     "normal": {
       "scale": { "hp": 1.6, "power": 1 },

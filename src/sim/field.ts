@@ -1,6 +1,6 @@
 // Battlefield generation (spec 04) plus the nav grid, flow fields, line of sight and
 // spatial hash used for movement (spec 05). Pure and seeded.
-import { BIOMES } from './data';
+import { BIOMES, HAZARDS } from './data';
 import { stream, type Rng } from './rng';
 import type { Team, Zone } from './types';
 
@@ -106,7 +106,7 @@ function tryGenerate(opt: FieldOptions, erosion: number, coverTypes: string[], h
     for (const [dx, dy] of [[0, 0], ...DIR4]) {
       const x = cx + dx, y = cy + dy;
       if (x < 0 || y < 0 || x >= w || y >= h || tiles[at(x, y)] !== Tile.Floor || spawnCols.has(x)) continue;
-      if (rng.chance(dx || dy ? 0.5 : 1)) { tiles[at(x, y)] = Tile.Hazard; cells.push(at(x, y)); }
+      if (rng.chance(dx || dy ? 0.5 : 1)) { if (HAZARDS.ground[kind]?.tile !== false) tiles[at(x, y)] = Tile.Hazard; cells.push(at(x, y)); }
     }
     if (cells.length) hazards.push({ kind, cells });
   }
@@ -164,14 +164,14 @@ export interface NavGrid {
   hazardCost: Float32Array;
 }
 
-const HAZARD_COST: Record<string, number> = { spikes: 4, spore_vent: 3, lava: 6, water: 2 };
+const costOf = (kind: string) => (HAZARDS.ground[kind]?.tile === false ? 0 : HAZARDS.ground[kind]?.pathCost ?? 3);
 
 function buildNav(tw: number, th: number, tiles: Uint8Array, hazards: Hazard[]): NavGrid {
   const w = tw * NAV, h = th * NAV;
   const walk = new Uint8Array(w * h);
   const hazardCost = new Float32Array(w * h);
   const hz = new Map<number, number>();
-  for (const hzd of hazards) for (const c of hzd.cells) hz.set(c, HAZARD_COST[hzd.kind] ?? 3);
+  for (const hzd of hazards) { const cost = costOf(hzd.kind); if (cost) for (const c of hzd.cells) hz.set(c, cost); }
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const t = Math.floor(y / NAV) * tw + Math.floor(x / NAV);
     walk[y * w + x] = tiles[t] === Tile.Floor || tiles[t] === Tile.Hazard ? 1 : 0;

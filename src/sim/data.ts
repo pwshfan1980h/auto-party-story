@@ -13,6 +13,7 @@ import baselinesJson from '../../data/leader-baselines.json';
 import delveJson from '../../data/delve.json';
 import ordersJson from '../../data/orders.json';
 import gearJson from '../../data/gear.json';
+import hazardsJson from '../../data/hazards.json';
 import type { AbilityDef, Attrs, Role, RuleDef, StatusDef, Stats } from './types';
 
 type StatBlock = Partial<Pick<Stats, 'maxHp' | 'power' | 'spell' | 'armor' | 'move' | 'crit' | 'evasion' | 'parry' | 'block'>>;
@@ -165,6 +166,14 @@ export interface WeaponDef { parry: number; block: number; disarm: number; natur
 export interface ShieldDef { block: number; missiles: boolean; move?: number }
 export interface GearRef { weapon: string; shield?: string }
 export const GEAR = gearJson as unknown as { weapons: Record<string, WeaponDef>; shields: Record<string, ShieldDef>; disarm: { dur: number } };
+
+export interface GroundHazardDef { tile: boolean; pathCost?: number; status?: string; dur?: number; emits?: string; rate?: number; seeds?: string; amount?: number; spread?: number }
+export interface GasDef { spread: number; fade: number; rangedMiss?: number; status?: string; statusAt?: number; dur?: number; color: string }
+export const HAZARDS = hazardsJson as unknown as {
+  ground: Record<string, GroundHazardDef>;
+  gases: Record<string, GasDef>;
+  air: { hz: number; draft: { min: number; max: number }; stir: number; blast: number; cap: number };
+};
 
 export const ORDERS_DATA = ordersJson as unknown as {
   orders: Record<string, { cost: number; cooldown: number }>;
