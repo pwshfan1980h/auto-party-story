@@ -58,3 +58,55 @@ describe('game loop', () => {
     expect(hire(s, s.hireBoard[0].hero.id)).toMatch(/costs/);
   });
 });
+
+describe('interactive delves', () => {
+  it('driving the steps with the bots matches the headless run exactly', async () => {
+    const { delveSteps, runRun } = await import('../src/sim/run');
+    const { Fight } = await import('../src/sim/fight');
+    const s = newGame(21);
+    const setup = { seed: 77, tier: 'I', party: s.roster.map((h) => ({ ...h.hero })), leaderId: s.roster[0].hero.id };
+    const steps = delveSteps(setup);
+    let answer: unknown;
+    let res;
+    for (;;) {
+      const st = steps.next(answer as never);
+      if (st.done) { res = st.value; break; }
+      const q = st.value;
+      answer = q.kind === 'fight' ? new Fight(q.setup).run() : q.kind === 'between' ? 'go' : q.kind === 'council' ? 'trust' : undefined;
+    }
+    const head = runRun(setup);
+    expect(res.outcome).toBe(head.outcome);
+    expect(res.banked).toBe(head.banked);
+    expect(res.ledger.length).toBe(head.ledger.length);
+  });
+
+  it('a delve the page closed on is played out on the next load, not undone', async () => {
+    const { beginDelve, finishPending } = await import('../src/game/expedition');
+    const s = newGame(5);
+    const ids = s.roster.map((h) => h.hero.id);
+    const steps = beginDelve(s, { partyIds: ids, leaderId: ids[0], tier: 'I', doctrine: 'balanced', fromWaystone: false });
+    steps.next(); // the delve is under way...
+    expect(s.pending).toBeTruthy();
+    const reloaded = JSON.parse(JSON.stringify(s)); // ...and the page closes
+    const out = finishPending(reloaded);
+    expect(out).not.toBeNull();
+    expect(reloaded.runs).toBe(1);
+    expect(reloaded.pending).toBeUndefined();
+  });
+
+  it('turning back at the first doorway ends the run as a retreat', async () => {
+    const { delveSteps } = await import('../src/sim/run');
+    const { Fight } = await import('../src/sim/fight');
+    const s = newGame(9);
+    const steps = delveSteps({ seed: 3, tier: 'I', party: s.roster.map((h) => ({ ...h.hero })), leaderId: s.roster[0].hero.id });
+    let answer: unknown, res;
+    for (;;) {
+      const st = steps.next(answer as never);
+      if (st.done) { res = st.value; break; }
+      const q = st.value;
+      answer = q.kind === 'fight' ? new Fight(q.setup).run() : q.kind === 'between' ? 'turn back' : q.kind === 'council' ? 'trust' : undefined;
+    }
+    expect(res.outcome === 'retreat' || res.outcome === 'wipe').toBe(true);
+    expect(res.turnBackUsed).toBe(true);
+  });
+});

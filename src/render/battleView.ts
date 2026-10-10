@@ -4,7 +4,7 @@ import { allVoxels, type Model } from '../art/kit';
 import { heroModel, rollLook } from '../art/humanoid';
 import { enemyModel } from '../art/monsters';
 import { ABILITIES } from '../sim/data';
-import { Fight, type FightResult, type FightSetup, type SimEvent } from '../sim/fight';
+import { Fight, type FightResult, type FightSetup, type OrderKind, type SimEvent } from '../sim/fight';
 import { buildField, brazier, tileToWorld } from './fieldView';
 import { Fx } from './fx';
 import { BattleScene } from './scene';
@@ -69,7 +69,12 @@ const STATUS_MOTES: Record<string, { c: number; y: number; grav: number; every: 
 };
 
 export class BattleReplay {
-  readonly result: FightResult;
+  /** The fight's result: known up front for replays, at the end for live fights. */
+  result: FightResult | null = null;
+  /** Live: the sim runs alongside playback (just ahead of it), so the player's orders change the fight. */
+  readonly live: boolean;
+  private ingested = 0;
+  private readonly snapsById = new Map<string, Snap[]>();
   readonly events: SimEvent[];
   readonly fx: Fx;
   private readonly units = new Map<string, UnitState>();
@@ -83,10 +88,11 @@ export class BattleReplay {
   private readonly root = new THREE.Group();
   private readonly fight: Fight;
 
-  constructor(readonly scene: BattleScene, readonly setup: FightSetup, readonly overlay: HTMLElement, readonly opts: BattleOptions) {
+  constructor(readonly scene: BattleScene, readonly setup: FightSetup, readonly overlay: HTMLElement, readonly opts: BattleOptions, live = false) {
+    this.live = live;
     this.fight = new Fight({ ...setup, mode: 'full' });
-    this.result = this.fight.run();
-    this.events = this.result.events;
+    if (!live) this.result = this.fight.run();
+    this.events = this.fight.events;
     const f = this.fight.field;
     scene.world.add(this.root);
     this.root.add(buildField(f, setup.seed).group);
@@ -98,18 +104,50 @@ export class BattleReplay {
     b.position.set(bx, 0, bz);
     this.root.add(b);
     scene.frame = (f.w + f.h) * 0.21;
-    // per-unit position snapshots
-    const snaps = new Map<string, Snap[]>();
-    for (const e of this.events) if (e.type === 'pos') for (const row of e.u as (string | number)[][]) {
-      const [id, x, y, fa, hp, en] = row as [string, number, number, number, number, number];
-      (snaps.get(id) ?? snaps.set(id, []).get(id)!).push([e.t, x, y, fa, hp, en]);
+    this.ingest();
+  }
+
+  /** Take in events the sim has produced: position snapshots, and units as they appear. */
+  private ingest() {
+    const snaps = this.snapsById;
+    const ev = this.events;
+    for (let i = this.ingested; i < ev.length; i++) {
+      const e = ev[i];
+      if (e.type === 'pos') for (const row of e.u as (string | number)[][]) {
+        const [id, x, y, fa, hp, en] = row as [string, number, number, number, number, number];
+        (snaps.get(id) ?? snaps.set(id, []).get(id)!).push([e.t, x, y, fa, hp, en]);
+      }
     }
-    for (const e of this.events) if (e.type === 'unitinfo') this.addUnit(e, snaps.get(e.unit as string) ?? []);
+    for (let i = this.ingested; i < ev.length; i++) {
+      const e = ev[i];
+      if (e.type === 'unitinfo') { const id = e.unit as string; this.addUnit(e, snaps.get(id) ?? snaps.set(id, []).get(id)!); }
+    }
+    this.ingested = ev.length;
+  }
+
+  /** Live play: give the fight an order now (spec 07 Player Orders). Returns the sim's answer. */
+  order(kind: OrderKind, targetId?: string): string {
+    return this.live && !this.fight.over ? this.fight.order(kind, targetId) : 'over';
+  }
+  get embers() { return this.fight.embersLeft; }
+
+  /** The unit under a screen point (for targeting orders): the nearest one within reach of the cursor. */
+  pick(clientX: number, clientY: number, team?: number): { id: string; team: number } | null {
+    const rect = this.scene.canvas.getBoundingClientRect();
+    let best: { id: string; team: number } | null = null, bestD = 44;
+    for (const u of this.units.values()) {
+      if (!u.alive || !u.view.root.visible || (team !== undefined && u.team !== team)) continue;
+      const v = u.view.root.position.clone().setY(0.35 * u.model.scale).project(this.scene.camera);
+      const x = rect.left + ((v.x + 1) / 2) * rect.width, y = rect.top + ((1 - v.y) / 2) * rect.height;
+      const d = Math.hypot(x - clientX, y - clientY);
+      if (d < bestD) { bestD = d; best = { id: u.id, team: u.team }; }
+    }
+    return best;
   }
 
   dispose() { this.scene.world.remove(this.root); this.fx.clear(); this.overlay.querySelectorAll('.fx-label').forEach((n) => n.remove()); }
 
-  get done() { return this.evIdx >= this.events.length; }
+  get done() { return this.evIdx >= this.events.length && (!this.live || this.fight.over); }
 
   private addUnit(e: SimEvent, snaps: Snap[]) {
     const id = e.unit as string;
@@ -374,6 +412,12 @@ export class BattleReplay {
     let dt = 0;
     if (this.freeze > 0) this.freeze -= dtReal; else dt = dtReal * speed * slow;
     this.t += dt;
+    if (this.live) {
+      // keep the sim a beat ahead of what's on screen, so snapshots are there to interpolate
+      while (!this.fight.over && this.fight.now < this.t + 0.3) this.fight.step();
+      this.ingest();
+      if (this.fight.over && !this.result) this.result = this.fight.outcome();
+    }
     while (this.evIdx < this.events.length && this.events[this.evIdx].t <= this.t) this.apply(this.events[this.evIdx++]);
     this.fx.update(dt);
 

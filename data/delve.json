@@ -8,5 +8,6 @@
     "boss": [4, 30],
     "treasure": [2, 14],
     "event": [1, 8]
-  }
+  },
+  "council": { "_doc": "When the Leader's call goes to the Council with a warning.", "bigRoomBelowHp": 0.75, "fuelSpare": 3 }
 }

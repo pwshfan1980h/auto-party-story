@@ -2,6 +2,7 @@
 // battlefields, the torch, the loot pack, Leader decisions, Hardcore permadeath, and the
 // Delve Ledger.
 import { CLASSES, ENEMIES, LEADERSHIP, PROGRESSION, RANKS, TIERS, DELVE } from './data';
+const RUN_RULES = DELVE as unknown as { council: { bigRoomBelowHp: number; fuelSpare: number } };
 import { FIGHT_TYPES, generateFloor, reveal, type FloorMap, type MapNode, type NodeType } from './delve';
 import { buildEncounter } from './encounter';
 import { LOOT } from './loot';
@@ -22,7 +23,7 @@ export interface RunHero extends HeroSnapshot {
  */
 export type RunPolicy = 'trust' | 'cautious' | 'orders';
 
-export interface RunWarning { kind: 'named' | 'mismatch' | 'returnFuel' | 'discipline'; detail: string }
+export interface RunWarning { kind: 'named' | 'mismatch' | 'returnFuel' | 'discipline' | 'bigRoom'; detail: string }
 
 export interface RunSetup {
   seed: number;
@@ -93,7 +94,44 @@ export interface RunResult {
 interface HeroState { snap: RunHero; hp: number; maxHp: number; energy: number; alive: boolean; carried: boolean; dealt: number; healed: number; kills: number }
 
 
+/**
+ * What a delve asks of whoever is driving it. The headless sim answers with bots (runRun);
+ * the game answers with the player: fights are played live, warnings go to the Council.
+ */
+export type DelveRequest =
+  | { kind: 'fight'; setup: FightSetup; entry: LedgerEntry; maps: FloorMap[] }
+  | { kind: 'between'; floor: number; node: number; canTurnBack: boolean }
+  | { kind: 'council'; warnings: RunWarning[]; call: Decision; floor: number; target: number; safer: number[]; embers: number; thisWayOpen: boolean; turnBackOpen: boolean; maps: FloorMap[] }
+  | { kind: 'room'; entry: LedgerEntry; maps: FloorMap[] };
+export type CouncilAnswer = 'trust' | 'turn back' | { thisWay: number };
+export type DelveAnswer = FightResult | CouncilAnswer | 'go' | 'turn back' | undefined;
+
+/** A whole Delve run, played headlessly with the policy's bots. */
 export function runRun(setup: RunSetup): RunResult {
+  const policy: RunPolicy = setup.policy ?? 'trust';
+  const steps = delveSteps(setup);
+  let answer: DelveAnswer;
+  let turnedBack = false;
+  for (;;) {
+    const step = steps.next(answer);
+    if (step.done) return step.value;
+    const q = step.value;
+    answer = undefined;
+    if (q.kind === 'fight') answer = new Fight(q.setup).run();
+    else if (q.kind === 'between') answer = 'go';
+    else if (q.kind === 'council') {
+      // the bots: trust always trusts; cautious and orders steer around serious warnings when they can
+      const serious = q.warnings.some((w) => w.kind !== 'discipline' && w.kind !== 'bigRoom');
+      if (policy === 'trust' || !serious) answer = 'trust';
+      else if (q.safer.length && q.embers >= 2 && q.thisWayOpen) answer = { thisWay: q.safer[0] };
+      else if (q.turnBackOpen && !turnedBack) { turnedBack = true; answer = 'turn back'; }
+      else answer = 'trust';
+    }
+  }
+}
+
+/** The run as a sequence of steps that pause for fights and decisions. */
+export function* delveSteps(setup: RunSetup): Generator<DelveRequest, RunResult, DelveAnswer> {
   const tier = TIERS[setup.tier];
   const tierIndex = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'].indexOf(setup.tier) + 1;
   const rng = stream(setup.seed, 'run');
@@ -160,7 +198,7 @@ export function runRun(setup: RunSetup): RunResult {
     if (next) leaderId = next.snap.id;
   };
 
-  function fightRoom(n: MapNode, fl: number, entry: LedgerEntry, ambush = false): 'won' | 'lost' | 'fled' {
+  function* fightRoom(n: MapNode, fl: number, entry: LedgerEntry, ambush = false): Generator<DelveRequest, 'won' | 'lost' | 'fled', DelveAnswer> {
     const roomType: RoomType = n.type === 'elite' || n.type === 'horde' || n.type === 'boss' ? n.type : 'normal';
     const dark = torch <= 0 || ambush;
     const monsters = buildEncounter(setup.tier, roomType, fl + (dark ? 2 : 0), stream(setup.seed, 'enc', fl, n.id), n.named);
@@ -179,8 +217,7 @@ export function runRun(setup: RunSetup): RunResult {
       orderPolicy: policy === 'orders' ? 'good' : 'none',
     };
     if (setup.record) entry.fight = fightSetup;
-    const fight = new Fight(fightSetup);
-    const r: FightResult = fight.run();
+    const r = (yield { kind: 'fight', setup: fightSetup, entry, maps }) as FightResult;
     embersSpent += Math.max(0, embers - r.embersLeft);
     embers = r.embersLeft;
     for (const [k, v] of Object.entries(r.calls)) callCounts[k] = (callCounts[k] ?? 0) + v;
@@ -240,13 +277,13 @@ export function runRun(setup: RunSetup): RunResult {
   }
 
   /** Walk home through cleared rooms (free from a campfire). Each room costs torch; in the dark the way back is ambushed. */
-  function walkHome(node: MapNode, fl: number, home: number, entry: LedgerEntry): RunResult['outcome'] {
+  function* walkHome(node: MapNode, fl: number, home: number, entry: LedgerEntry): Generator<DelveRequest, RunResult['outcome'], DelveAnswer> {
     torch -= home;
     const ambushes = torch < 0 ? Math.ceil(-torch / 2) : 0;
     if (ambushes) entry.lost.push(`the torch died on the way back: ${ambushes} ambush${ambushes > 1 ? 'es' : ''}`);
     torch = Math.max(0, torch);
     for (let a = 0; a < ambushes; a++) {
-      const res = fightRoom({ ...node, id: 900 + a, type: 'fight', named: undefined }, fl, entry, true);
+      const res = yield* fightRoom({ ...node, id: 900 + a, type: 'fight', named: undefined }, fl, entry, true);
       if (res === 'lost') return 'wipe';
     }
     return 'retreat';
@@ -277,17 +314,30 @@ export function runRun(setup: RunSetup): RunResult {
       if (call.decision === 'retreat') {
         const entry: LedgerEntry = { floor, node: at, room: node.type, result: 'passed', secs: 0, gained: [], lost: [], call };
         ledger.push(entry);
-        outcome = walkHome(node, floor, home, entry);
+        outcome = yield* walkHome(node, floor, home, entry);
+        yield { kind: 'room', entry, maps };
         break;
       }
       if (call.next === undefined) break;
+      // the player's one emergency Turn back, between rooms
+      if (!turnBackUsed && (yield { kind: 'between', floor, node: at, canTurnBack: true }) === 'turn back') {
+        turnBackUsed = true;
+        const entry: LedgerEntry = { floor, node: at, room: node.type, result: 'passed', secs: 0, gained: [], lost: [], call, response: 'turned back' };
+        ledger.push(entry);
+        outcome = yield* walkHome(node, floor, home, entry);
+        yield { kind: 'room', entry, maps };
+        break;
+      }
       // Warnings the player can observe before committing (spec 07): never hidden contents, only signs and known facts.
       let target = call.next;
       const observe = (id: number): RunWarning[] => {
         const n = map.nodes[id], w: RunWarning[] = [];
         if (n.named && n.seen) w.push({ kind: 'named', detail: 'claw marks and an unnatural silence' });
-        if (n.known && (n.type === 'elite' || n.type === 'horde' || n.type === 'boss') && partyHp() < 0.5) w.push({ kind: 'mismatch', detail: `a ${n.type} room with the party at ${Math.round(partyHp() * 100)}%` });
-        if (torch - 1 <= roomsHome + 1) w.push({ kind: 'returnFuel', detail: `torch ${torch} with ${roomsHome + 1} rooms back` });
+        const big = n.known && (n.type === 'elite' || n.type === 'horde' || n.type === 'boss');
+        if (big && partyHp() < RUN_RULES.council.bigRoomBelowHp) w.push({ kind: 'mismatch', detail: `${n.type === 'elite' ? 'an' : 'a'} ${n.type} room with the party at ${Math.round(partyHp() * 100)}%` });
+        else if (big) w.push({ kind: 'bigRoom', detail: `${n.type === 'boss' ? 'the boss' : `a${n.type === 'elite' ? 'n' : ''} ${n.type}`} ahead` });
+        if (torch - 1 <= roomsHome + RUN_RULES.council.fuelSpare) w.push({ kind: 'returnFuel', detail: `torch ${torch} with ${roomsHome + 1} rooms back` });
+        if (fallen() > 0) w.push({ kind: 'mismatch', detail: `pressing on with ${fallen()} of the party down` });
         return w;
       };
       const warnings = observe(target);
@@ -296,18 +346,18 @@ export function runRun(setup: RunSetup): RunResult {
       if (warnings.length) {
         warnCount++;
         response = 'trusted';
-        const serious = warnings.some((w) => w.kind !== 'discipline');
-        if (policy !== 'trust' && serious) {
-          const alt = call.options.map((o) => o.node).filter((id) => id !== target && observe(id).length === 0 && map.nodes[id].known);
-          if (alt.length && embers >= 2 && thisWayFloor !== floor) {
-            target = alt[0]; embers -= 2; embersSpent += 2; thisWayUsed++; thisWayFloor = floor; response = 'this way';
-          } else if (!turnBackUsed) {
-            turnBackUsed = true; response = 'turned back';
-            const entry: LedgerEntry = { floor, node: at, room: node.type, result: 'passed', secs: 0, gained: [], lost: [], call, warnings, response };
-            ledger.push(entry);
-            outcome = walkHome(node, floor, home, entry);
-            break;
-          }
+        // the Council: the Leader's call and its warnings, put to whoever is watching
+        const safer = call.options.map((o) => o.node).filter((id) => id !== target && observe(id).length === 0 && map.nodes[id].known);
+        const answer = (yield { kind: 'council', warnings, call, floor, target, safer, embers, thisWayOpen: thisWayFloor !== floor, turnBackOpen: !turnBackUsed, maps }) as CouncilAnswer;
+        if (typeof answer === 'object' && safer.includes(answer.thisWay) && embers >= 2 && thisWayFloor !== floor) {
+          target = answer.thisWay; embers -= 2; embersSpent += 2; thisWayUsed++; thisWayFloor = floor; response = 'this way';
+        } else if (answer === 'turn back' && !turnBackUsed) {
+          turnBackUsed = true; response = 'turned back';
+          const entry: LedgerEntry = { floor, node: at, room: node.type, result: 'passed', secs: 0, gained: [], lost: [], call, warnings, response };
+          ledger.push(entry);
+          outcome = yield* walkHome(node, floor, home, entry);
+          yield { kind: 'room', entry, maps };
+          break;
         }
       }
       at = target;
@@ -319,11 +369,11 @@ export function runRun(setup: RunSetup): RunResult {
       const entry: LedgerEntry = { floor, node: at, room: next.type, named: next.named, result: 'passed', secs: 0, gained: [], lost: [], call, warnings: warnings.length ? warnings : undefined, response };
       ledger.push(entry);
       if (FIGHT_TYPES.has(next.type) || next.named) {
-        const res = fightRoom(next, floor, entry);
+        const res = yield* fightRoom(next, floor, entry);
         call.goodCall = res === 'won' && !entry.lost.some((l) => l.includes('fell') || l.includes('Downed'));
-        if (res === 'lost') { outcome = 'wipe'; break; }
-        if (res === 'fled') { outcome = walkHome(next, floor, roomsHome, entry); break; }
-        if (next.type === 'boss') { outcome = 'cleared'; break; }
+        if (res === 'lost') { outcome = 'wipe'; yield { kind: 'room', entry, maps }; break; }
+        if (res === 'fled') { outcome = yield* walkHome(next, floor, roomsHome, entry); yield { kind: 'room', entry, maps }; break; }
+        if (next.type === 'boss') { outcome = 'cleared'; yield { kind: 'room', entry, maps }; break; }
       } else if (next.type === 'campfire') {
         // a campfire is a way out: from here on, the way home is measured from this fire
         roomsHome = 0;
@@ -341,8 +391,8 @@ export function runRun(setup: RunSetup): RunResult {
         else if (r < 0.8) { for (const h of active()) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * 0.1); entry.gained.push('a kind stranger (+10% HP)'); }
         else { for (const h of active()) h.hp = Math.max(1, h.hp - h.maxHp * 0.1); entry.lost.push('a trap (−10% HP)'); }
       }
+      yield { kind: 'room', entry, maps };
       if (next.type === 'stairs') break;
-
     }
   }
   if (!outcome) outcome = 'retreat';

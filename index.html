@@ -72,6 +72,16 @@
     .minimap .node { fill: #241f2c; stroke: #5a5068; stroke-width: 1.5; } .minimap .node.done { fill: #3a2c1c; stroke: #9a7040; } .minimap .node.here { fill: var(--torch); stroke: #fff2c8; }
     .minimap .glyph { font: 10px var(--mono); fill: var(--fg); text-anchor: middle; }
     #bar { position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px)); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; background: rgba(20, 18, 26, 0.86); border-top: 2px solid #120c08; box-shadow: inset 0 2px 0 #7a5634; }
+    #orders { position: absolute; left: 12px; right: 12px; bottom: calc(56px + env(safe-area-inset-bottom, 0px)); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center; }
+    #orders .order { background: rgba(47, 36, 27, 0.92); }
+    #orders .turnback { background: rgba(80, 30, 26, 0.92); border-color: #7a3a30; }
+    #orders .hint { color: var(--torch); font: 14px var(--display); text-shadow: 1px 1px 0 #000; }
+    .embers { display: inline-flex; gap: 4px; margin-right: 6px; } .pip { width: 12px; height: 12px; border-radius: 2px; background: #2a1a10; border: 1px solid #5a3a20; transform: rotate(45deg); }
+    .pip.lit { background: var(--torch); box-shadow: 0 0 8px var(--torch); border-color: #ffd890; }
+    .order-flash { position: absolute; left: 50%; bottom: 48px; transform: translateX(-50%); font: 20px var(--display); color: var(--torch); text-shadow: 2px 2px 0 #000; pointer-events: none; animation: ban 1.4s ease-out forwards; }
+    .council-panel { pointer-events: auto; position: fixed; left: 50%; top: 22%; transform: translateX(-50%); width: min(460px, calc(100vw - 32px)); background: rgba(23, 20, 29, 0.97) !important; border: 1px solid var(--line); border-top: 2px solid var(--torch) !important; border-radius: 4px; padding: 14px 16px !important; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7); }
+    .council-panel ul { margin: 6px 0 12px; padding-left: 18px; } .council-panel .acts { display: flex; flex-wrap: wrap; gap: 8px; }
+    .council-panel button.go { font-size: 15px; padding: 8px 14px; }
     #bar .sp { flex: 1; }
     #vol { width: 90px; accent-color: var(--torch); }
     @media (max-width: 760px) { .town { grid-template-columns: 1fr; } }
@@ -83,6 +93,7 @@
     <canvas id="c" aria-label="The delve, in voxels"></canvas>
     <div id="ov"></div>
     <div id="hud" aria-live="polite"></div>
+    <div id="orders" aria-label="Player Orders"></div>
     <div id="bar">
       <span id="speed" role="group" aria-label="Speed"></span>
       <button id="skip" type="button">Skip fight</button>
@@ -91,7 +102,6 @@
       <button id="sound" type="button" aria-pressed="true">Sound</button>
       <input id="vol" type="range" min="0" max="100" value="70" aria-label="Volume" />
       <span class="sp"></span>
-      <button id="ledger" type="button">Skip to the ledger</button>
     </div>
   </div>
   <script type="module" src="/src/game/main.ts"></script>
