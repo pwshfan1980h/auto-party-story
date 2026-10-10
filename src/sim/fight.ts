@@ -391,6 +391,12 @@ export class Fight {
     return this.finish();
   }
 
+  /** For live play: has the fight ended, how far has it run, and its result once over. */
+  get over() { return this.result !== null; }
+  get now() { return this.tick * TICK; }
+  get embersLeft() { return this.embers; }
+  outcome(): FightResult { if (!this.result) throw new Error('fight still running'); return this.finish(); }
+
   step() {
     if (this.result) return;
     this.tick++;

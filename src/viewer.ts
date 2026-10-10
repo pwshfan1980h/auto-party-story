@@ -27,7 +27,7 @@ function start() {
   const monsters = buildEncounter(tier, room, TIERS[tier].floors[0] + 1, stream(seed, 'viewer', tier, room));
   replay = new BattleReplay(scene, { seed, key: ['viewer', tier, room], tier, roomType: room, heroes, monsters, leader: { heroId: heroes[0].id, rank: 'seasoned', noise: 0.15, temperament: 'stubborn' } }, overlay, opts);
   endedAt = -1;
-  $('status').textContent = `Seed ${seed} · ${heroes.length} heroes vs ${monsters.length} · sim says: ${replay.result.result} in ${replay.result.duration} s`;
+  $('status').textContent = `Seed ${seed} · ${heroes.length} heroes vs ${monsters.length} · sim says: ${replay.result!.result} in ${replay.result!.duration} s`;
 }
 
 const speeds: [string, number][] = [['½×', 0.5], ['¾×', 0.75], ['1×', 1], ['2×', 2], ['4×', 4]];

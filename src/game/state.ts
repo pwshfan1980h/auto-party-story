@@ -27,6 +27,8 @@ export interface GameState {
   memorial: Fallen[];
   history: RunSummary[];
   hired: number;
+  /** A delve in progress. Hardcore: if the page closes mid-delve, it is finished without the player on next load. */
+  pending?: { plan: import('./expedition').DelvePlan; run: number };
 }
 
 const names = namesJson as unknown as Record<string, { start: string[]; middle: string[]; end: string[] }>;

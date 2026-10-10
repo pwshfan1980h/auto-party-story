@@ -9,14 +9,15 @@ const OUTCOME: Record<string, [string, string]> = {
   wipe: ['Wiped', 'No one came back.'],
 };
 
-export function renderLedger(root: HTMLElement, out: DelveOutcome, onBack: () => void) {
+export function renderLedger(root: HTMLElement, out: DelveOutcome, onBack: () => void, note?: string) {
   const r = out.result;
-  const [title, line] = OUTCOME[r.outcome];
+  let [title, line] = OUTCOME[r.outcome];
+  if (r.outcome === 'retreat' && r.ledger.some((e) => e.response === 'turned back')) line = 'You called the retreat, and the party walked out.';
   const died = new Set(out.aftermath.died);
   const levelled = new Map(out.aftermath.levelled.map((l) => [l.id, l.level]));
   clear(root).append(
     el('main', { class: 'ledger' },
-      el('header', {}, el('h1', { class: r.outcome }, title), el('p', {}, line),
+      el('header', {}, el('h1', { class: r.outcome }, title), el('p', {}, line), note ? el('p', { class: 'warn' }, note) : null,
         out.unlockedTier ? el('p', { class: 'gain big' }, `Tier ${out.unlockedTier} is open.`) : null),
       el('section', { class: 'panel' },
         el('h2', {}, 'The party'),

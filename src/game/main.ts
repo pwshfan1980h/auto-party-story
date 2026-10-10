@@ -4,27 +4,31 @@ import { BattleScene } from '../render/scene';
 import { DelvePlayer } from '../ui/delvePlay';
 import { renderLedger } from '../ui/ledger';
 import { Town } from '../ui/town';
-import { delve, type DelveOutcome, type DelvePlan } from './expedition';
+import { beginDelve, finishPending, settleDelve, type DelveOutcome, type DelvePlan } from './expedition';
 import { eraseGame, loadGame, newGame, saveGame, type GameState } from './state';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const app = $('app');
 let state: GameState = loadGame() ?? newGame();
+// Hardcore: a delve the page closed on is played out now, without the player's help
+const finishedWithoutYou = finishPending(state);
 saveGame(state);
 let scene: BattleScene | null = null;
 let player: DelvePlayer | null = null;
 
 const town = new Town(app, state, { onDelve: startDelve, onAbandon: () => { eraseGame(); state = newGame(); saveGame(state); town.setState(state); } });
 town.render();
+if (finishedWithoutYou) renderLedger(app, finishedWithoutYou, () => { town.setState(state); window.scrollTo(0, 0); }, 'The page closed mid-delve. The party carried on without you.');
 
 function startDelve(plan: DelvePlan) {
   sfx.unlock();
   sfx.ui('delve');
-  // the run is settled and saved before it is shown: Hardcore
-  const out = delve(state, plan);
+  // the save remembers the delve is under way before the first step: Hardcore
+  const steps = beginDelve(state, plan);
+  const names = Object.fromEntries(state.roster.map((h) => [h.hero.id, h.hero.name]));
   document.body.classList.add('delving');
   scene ??= new BattleScene($('c'));
-  player = new DelvePlayer(scene, $('ov'), $('hud'), out, () => showLedger(out));
+  player = new DelvePlayer(scene, $('ov'), $('hud'), $('orders'), steps, { names }, (result) => showLedger(settleDelve(state, plan, result)));
   window.scrollTo(0, 0);
 }
 
@@ -53,7 +57,7 @@ vol.oninput = () => { sfx.unlock(); sfx.setVolume(+vol.value / 100, false); sync
 syncSound();
 // soft interface clicks in town
 document.addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest('button'); if (b && !document.body.classList.contains('delving')) { sfx.unlock(); sfx.ui(/^Hire/.test(b.textContent ?? '') ? 'coin' : 'click'); } });
-$('ledger').onclick = () => player?.skipAll();
+
 $('cam').onclick = () => { if (!player) return; player.opts.camera = player.opts.camera === 'off' ? 'subtle' : 'off'; $('cam').setAttribute('aria-pressed', String(player.opts.camera !== 'off')); };
 $('clarity').onclick = () => { if (!player) return; player.opts.clarity = !player.opts.clarity; $('clarity').setAttribute('aria-pressed', String(player.opts.clarity)); };
 
