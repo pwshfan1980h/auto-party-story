@@ -1,5 +1,5 @@
 // Derived stats and the damage maths (spec 01).
-import { ARCHETYPES, CLASSES, ENEMIES, GEAR, MONSTER_SCALE, PROGRESSION, RACES, RANKS, SPECIES } from './data';
+import { ARCHETYPES, CLASSES, ENEMIES, GEAR, ITEMS, MONSTER_SCALE, PROGRESSION, RACES, RANKS, SPECIES } from './data';
 import type { Rng } from './rng';
 import { PHYSICAL, type Attrs, type DamageType, type Stats } from './types';
 
@@ -37,7 +37,7 @@ function applyGear(s: Stats, weaponId?: string, shieldId?: string) {
   s.move += sh?.move ?? 0;
 }
 
-export function heroStats(classId: string, raceId: string, level: number, attrs: Attrs, gearScore: number): Stats {
+export function heroStats(classId: string, raceId: string, level: number, attrs: Attrs, gearScore: number, items: string[] = []): Stats {
   const c = CLASSES[classId];
   const r = RACES[raceId];
   const s = baseStats();
@@ -49,7 +49,11 @@ export function heroStats(classId: string, raceId: string, level: number, attrs:
   s.move = c.stats.move ?? 1.5;
   s.crit = c.stats.crit ?? 0.05;
   // gear sets the floor for parry and block; skill grows it with levels, and attributes sharpen it below
-  applyGear(s, c.gear?.weapon, c.gear?.shield);
+  // equipped items can change the weapon and shield carried (the equip rules keep it sensible)
+  const worn = items.map((id) => ITEMS[id]).filter((x) => !!x);
+  const weapon = worn.find((x) => x.slot === 'weapon')?.gear ?? c.gear?.weapon;
+  const shield = c.gear?.shield ? worn.find((x) => x.slot === 'shield')?.gear ?? c.gear.shield : undefined;
+  applyGear(s, weapon, shield);
   if (s.parry > 0) s.parry += (c.growth.parry ?? 0) * lv;
   if (s.block > 0) s.block += (c.growth.block ?? 0) * lv;
 
@@ -73,6 +77,10 @@ export function heroStats(classId: string, raceId: string, level: number, attrs:
 
   for (const [k, p] of Object.entries(r.pct)) (s as unknown as Record<string, number>)[k] *= 1 + (p ?? 0);
   for (const [k, p] of Object.entries(r.add)) (s as unknown as Record<string, number>)[k] += p ?? 0;
+
+  for (const it of worn) for (const [k, v] of Object.entries(it.add)) (s as unknown as Record<string, number>)[k] += v ?? 0;
+  s.parry = Math.min(PROGRESSION.defense.cap, s.parry);
+  s.block = Math.min(PROGRESSION.defense.cap, s.block);
 
   const gear = 1 + 0.012 * gearScore;
   s.maxHp *= gear; s.power *= gear; s.spell *= gear; s.armor *= gear;

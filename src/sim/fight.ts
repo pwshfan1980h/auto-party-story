@@ -25,6 +25,8 @@ export interface HeroSnapshot {
   energy?: number;
   /** Current HP when carried over from an earlier room; full if omitted. */
   hp?: number;
+  /** Equipped items (data/items.json). */
+  items?: string[];
 }
 
 export interface MonsterSpawn {
@@ -245,7 +247,7 @@ export class Fight {
     this.field = generateField({
       seed: setup.seed, key, biome: tier.biome,
       w: tier.field.w + (horde ? 8 : big ? 4 : 0), h: tier.field.h + (horde ? 4 : big ? 2 : 0),
-      cover: tier.field.cover, hazards: tier.field.hazards,
+      cover: tier.field.cover, hazards: tier.field.hazards, hazardKinds: (tier.field as { hazardKinds?: string[] }).hazardKinds,
     });
     this.air = new Air(this.field, stream(setup.seed, 'air', ...key));
     const spawnRng = stream(setup.seed, 'spawn', ...key);
@@ -290,7 +292,7 @@ export class Fight {
   private addHero(h: HeroSnapshot, rng: Rng) {
     const c = CLASSES[h.classId];
     const attrs = h.attrs ?? autoAttrs(h.classId, h.level);
-    const base = heroStats(h.classId, h.raceId, h.level, attrs, h.gearScore);
+    const base = heroStats(h.classId, h.raceId, h.level, attrs, h.gearScore, h.items);
     const [x, y] = this.place(0, h.zone, rng);
     const roles = c.roles;
     this.baseUnit({

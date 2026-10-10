@@ -14,6 +14,8 @@ import delveJson from '../../data/delve.json';
 import ordersJson from '../../data/orders.json';
 import gearJson from '../../data/gear.json';
 import hazardsJson from '../../data/hazards.json';
+import eventsJson from '../../data/events.json';
+import itemsJson from '../../data/items.json';
 import type { AbilityDef, Attrs, Role, RuleDef, StatusDef, Stats } from './types';
 
 type StatBlock = Partial<Pick<Stats, 'maxHp' | 'power' | 'spell' | 'armor' | 'move' | 'crit' | 'evasion' | 'parry' | 'block'>>;
@@ -174,6 +176,14 @@ export const HAZARDS = hazardsJson as unknown as {
   gases: Record<string, GasDef>;
   air: { hz: number; draft: { min: number; max: number }; stir: number; blast: number; cap: number };
 };
+
+export interface EventOutcome { chance: number; say?: string; loot?: { items: number; each: number }; heal?: { pct: number }; hurt?: { pct: number }; torch?: { n: number }; embers?: { n: number }; xp?: { n: number }; reveal?: boolean; dropItem?: { n: number }; ambush?: { room: string } }
+export interface EventDef { id: string; text: string; choices: { label: string; reward: number; risk: number; needsPack?: boolean; outcomes: EventOutcome[] }[] }
+export const EVENTS = (eventsJson as unknown as { events: EventDef[] }).events;
+
+export interface ItemDef { name: string; slot: 'weapon' | 'shield' | 'armour' | 'trinket'; tier: number; gear?: string; add: Partial<Record<'power' | 'spell' | 'armor' | 'maxHp' | 'crit' | 'evasion' | 'parry' | 'block' | 'move' | 'healPower' | 'energyGain', number>> }
+export const ITEMS_DATA = itemsJson as unknown as { dropChance: number; items: Record<string, ItemDef> };
+export const ITEMS = ITEMS_DATA.items;
 
 export const ORDERS_DATA = ordersJson as unknown as {
   orders: Record<string, { cost: number; cooldown: number }>;

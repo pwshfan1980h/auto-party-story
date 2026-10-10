@@ -1,5 +1,6 @@
 // Auto Party Story, M2: Torchwatch → delve → Delve Ledger → Torchwatch, saved in the browser.
 import { sfx } from '../audio/sfx';
+import { rollLook } from '../art/humanoid';
 import { BattleScene } from '../render/scene';
 import { DelvePlayer } from '../ui/delvePlay';
 import { renderLedger } from '../ui/ledger';
@@ -28,9 +29,10 @@ function startDelve(plan: DelvePlan) {
   // the save remembers the delve is under way before the first step: Hardcore
   const steps = beginDelve(state, plan);
   const names = Object.fromEntries(state.roster.map((h) => [h.hero.id, h.hero.name]));
+  const voices = Object.fromEntries(state.roster.map((h) => [h.hero.id, { race: h.hero.raceId, sex: rollLook(h.hero.raceId, h.hero.id).sex }]));
   document.body.classList.add('delving');
   scene ??= new BattleScene($('c'));
-  player = new DelvePlayer(scene, $('ov'), $('hud'), $('orders'), steps, { names }, (result) => showLedger(settleDelve(state, plan, result)));
+  player = new DelvePlayer(scene, $('ov'), $('hud'), $('orders'), steps, { names, voices }, (result) => showLedger(settleDelve(state, plan, result)));
   window.scrollTo(0, 0);
 }
 

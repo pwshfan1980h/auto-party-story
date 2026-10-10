@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { allVoxels, type Model } from '../art/kit';
 import { heroModel, rollLook } from '../art/humanoid';
 import { enemyModel } from '../art/monsters';
-import { ABILITIES } from '../sim/data';
+import { ABILITIES, ENEMIES } from '../sim/data';
 import { Fight, type FightResult, type FightSetup, type OrderKind, type SimEvent } from '../sim/fight';
 import { buildField, brazier, tileToWorld } from './fieldView';
 import { Fx } from './fx';
@@ -38,6 +38,8 @@ interface UnitState {
   name: string;
   level: number;
   intent: string;
+  /** Who speaks for this unit, if anyone: heroes and the humanoid foes. */
+  voice: { race: string; sex: 'm' | 'f' } | null;
   moteT: number;
   shadow: THREE.Mesh;
 }
@@ -172,7 +174,10 @@ export class BattleReplay {
     const id = e.unit as string;
     if (this.units.has(id)) return;
     const hero = this.setup.heroes.find((h) => h.id === id);
-    const model = hero ? heroModel(hero.classId, rollLook(hero.raceId, hero.id)) : enemyModel(e.def as string);
+    const look = hero ? rollLook(hero.raceId, hero.id) : null;
+    const model = hero ? heroModel(hero.classId, look!) : enemyModel(e.def as string);
+    const species = hero ? '' : ENEMIES[e.def as string]?.species ?? '';
+    const voice = hero ? { race: hero.raceId, sex: look!.sex } : species === 'goblin' ? { race: 'goblin', sex: 'm' as const } : species === 'cultist' || species === 'robber' ? { race: 'human', sex: (id.length % 2 ? 'm' : 'f') as 'm' | 'f' } : null;
     const view = new UnitView(model, id.length * 13);
     const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.26 * model.scale, 16), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35, depthWrite: false }));
     shadow.rotation.x = -Math.PI / 2;
@@ -183,7 +188,7 @@ export class BattleReplay {
     const team = e.team as number;
     // start from the spawn position, so units are on the field from their first frame
     if (!snaps.length || snaps[0][0] > e.t) snaps.unshift([e.t, e.x as number, e.y as number, team ? Math.PI : 0, e.maxHp as number, 0]);
-    this.units.set(id, { id, view, model, team, maxHp: e.maxHp as number, snaps, alive: true, downed: false, anim: null, animStart: 0, animDur: 0, yaw: team ? -Math.PI / 2 : Math.PI / 2, drip: 0, feared: false, statuses: [], moteT: 0, name: (e.name as string) ?? id, level: (e.level as number) ?? 1, intent: '', shadow });
+    this.units.set(id, { id, view, model, team, maxHp: e.maxHp as number, snaps, alive: true, downed: false, anim: null, animStart: 0, animDur: 0, yaw: team ? -Math.PI / 2 : Math.PI / 2, drip: 0, feared: false, statuses: [], moteT: 0, name: (e.name as string) ?? id, level: (e.level as number) ?? 1, intent: '', voice, shadow });
   }
 
   /** Interpolated [x, y, hp, energy] for a unit at time t. */
@@ -378,7 +383,7 @@ export class BattleReplay {
         this.fx.burst(this.world(x, y), Array.from({ length: 6 }, () => ({ x: (Math.random() - 0.5) * 10, y: 0, z: (Math.random() - 0.5) * 10, c: 0x6e687a })), 0.03, { life: 0.5, up: -0.4, grav: 3 });
         break;
       }
-      case 'downed': { const u = U(e.unit); if (u) { u.downed = true; u.anim = 'downed'; A?.downed(this.panOf(e.unit)); } break; }
+      case 'downed': { const u = U(e.unit); if (u) { u.downed = true; u.anim = 'downed'; A?.downed(this.panOf(e.unit)); if (u.voice) A?.voice(u.voice.race, u.voice.sex, 'ugh', 'pain', this.panOf(e.unit)); } break; }
       case 'revive': { const u = U(e.dst); if (u) { u.downed = false; u.anim = 'celebrate'; u.animStart = this.t; u.animDur = 0.6; A?.heal(this.panOf(e.dst), true); } break; }
       case 'death': case 'escaped': {
         const u = U(e.unit); if (!u || !u.alive) break;
@@ -387,6 +392,7 @@ export class BattleReplay {
         if (e.type === 'death') {
           this.fx.burst(this.world(x, y), allVoxels(u.model), VOXEL * u.model.scale, { life: 2.4, yaw: u.yaw, spread: 1.2 });
           A?.death(this.panOf(e.unit), /skeleton|bone|skull/.test(u.model.id));
+          if (u.voice) A?.voice(u.voice.race, u.voice.sex, `${u.name} falls`, 'pain', this.panOf(e.unit));
           // a hero's fall gets its moment: Hardcore means this is the last of them
           if (u.team === 0) {
             const leader = this.setup.leader?.heroId === u.id;
@@ -404,6 +410,7 @@ export class BattleReplay {
         const ab = ABILITIES[e.ability as string];
         this.banner((ab?.name ?? 'Ultimate').toUpperCase());
         A?.ult(this.panOf(e.unit), voiceOf(e.ability as string));
+        if (u.voice) A?.voice(u.voice.race, u.voice.sex, ab?.name ?? 'ultimate', 'shout', this.panOf(e.unit));
         this.startCine(this.world(x, y));
         this.scene.shake(0.03, 0.15);
         break;
@@ -413,11 +420,14 @@ export class BattleReplay {
         const [x, y] = this.sample(u, this.t);
         const words: Record<string, string> = { charge: 'Charge!', hold: 'Hold!', focus: 'Focus that one!', rally: 'Rally!', fallback: 'Fall back!' };
         this.label(words[e.call as string] ?? String(e.call), this.world(x, y, 1.3), 'call');
+        if (u.voice) A?.voice(u.voice.race, u.voice.sex, words[e.call as string] ?? String(e.call), 'shout', this.panOf(e.leader));
         break;
       }
       case 'end': {
         const r = e.result as string;
         A?.ending(r === 'victory');
+        const cheer = [...this.units.values()].find((x) => x.team === 0 && x.alive && !x.downed && x.voice);
+        if (r === 'victory' && cheer?.voice) setTimeout(() => A?.voice(cheer.voice!.race, cheer.voice!.sex, 'we did it', 'cheer', 0), 500);
         this.banner(r === 'victory' ? 'VICTORY' : r === 'fled' ? 'FELL BACK' : 'WIPED', r === 'victory' ? 'The way on is clear' : r === 'fled' ? 'The party got out' : 'The dark takes them');
         this.startCine(new THREE.Vector3(), true);
         break;

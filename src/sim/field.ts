@@ -31,6 +31,8 @@ export interface FieldOptions {
   h: number;
   cover: [number, number];
   hazards: number;
+  /** Hazard kinds allowed here (a tier can be gentler than its biome); defaults to the biome's list. */
+  hazardKinds?: string[];
 }
 
 const DIR4 = [[1, 0], [-1, 0], [0, 1], [0, -1]] as const;
@@ -39,7 +41,7 @@ export function generateField(opt: FieldOptions): Field {
   const biome = BIOMES[opt.biome];
   for (let attempt = 0; attempt < 30; attempt++) {
     const rng = stream(opt.seed, 'field', ...opt.key, attempt);
-    const f = tryGenerate(opt, biome.erosion, biome.coverTypes, biome.hazards, rng);
+    const f = tryGenerate(opt, biome.erosion, biome.coverTypes, opt.hazardKinds ?? biome.hazards, rng);
     if (f) return finish(f, attempt, false);
   }
   return finish(plainField(opt), 30, true);

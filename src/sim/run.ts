@@ -1,8 +1,9 @@
 // A whole Delve run (spec 07 + DESIGN §7): fogged floor maps, many battles on generated
 // battlefields, the torch, the loot pack, Leader decisions, Hardcore permadeath, and the
 // Delve Ledger.
-import { CLASSES, ENEMIES, LEADERSHIP, PROGRESSION, RANKS, TIERS, DELVE } from './data';
-const RUN_RULES = DELVE as unknown as { council: { bigRoomBelowHp: number; fuelSpare: number } };
+import { CLASSES, ENEMIES, EVENTS, ITEMS, ITEMS_DATA, LEADERSHIP, PROGRESSION, RANKS, TIERS, DELVE, type EventDef } from './data';
+const tierIndexOf = (t: string) => ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'].indexOf(t) + 1;
+const RUN_RULES = DELVE as unknown as { council: { bigRoomBelowHp: number; fuelSpare: number }; events: { riskWeight: number } };
 import { FIGHT_TYPES, generateFloor, reveal, type FloorMap, type MapNode, type NodeType } from './delve';
 import { buildEncounter } from './encounter';
 import { LOOT } from './loot';
@@ -59,6 +60,8 @@ export interface LedgerEntry {
   response?: 'trusted' | 'turned back' | 'this way';
   /** With `record`: the exact fight, replayable by re-simulating it. */
   fight?: FightSetup;
+  /** An event room: what happened and what was chosen. */
+  event?: { id: string; text: string; choice: string };
 }
 
 export interface RunResult {
@@ -89,6 +92,8 @@ export interface RunResult {
   decisions: Decision[];
   ledger: LedgerEntry[];
   maps: FloorMap[];
+  /** Equipment brought home (lost on a wipe). */
+  found: string[];
   /** Per-hero end state, for the after-action report. */
   heroes: Record<string, { hp: number; maxHp: number; fell: boolean; carried: boolean; dealt: number; healed: number; kills: number }>;
 }
@@ -104,9 +109,10 @@ export type DelveRequest =
   | { kind: 'fight'; setup: FightSetup; entry: LedgerEntry; maps: FloorMap[] }
   | { kind: 'between'; floor: number; node: number; canTurnBack: boolean }
   | { kind: 'council'; warnings: RunWarning[]; call: Decision; floor: number; target: number; safer: number[]; embers: number; thisWayOpen: boolean; turnBackOpen: boolean; maps: FloorMap[] }
-  | { kind: 'room'; entry: LedgerEntry; maps: FloorMap[] };
+  | { kind: 'room'; entry: LedgerEntry; maps: FloorMap[] }
+  | { kind: 'event'; event: EventDef; open: number[]; suggested: number; entry: LedgerEntry; maps: FloorMap[] };
 export type CouncilAnswer = 'trust' | 'turn back' | { thisWay: number };
-export type DelveAnswer = FightResult | CouncilAnswer | 'go' | 'turn back' | undefined;
+export type DelveAnswer = FightResult | CouncilAnswer | 'go' | 'turn back' | number | undefined;
 
 /** A whole Delve run, played headlessly with the policy's bots. */
 export function runRun(setup: RunSetup): RunResult {
@@ -121,6 +127,7 @@ export function runRun(setup: RunSetup): RunResult {
     answer = undefined;
     if (q.kind === 'fight') answer = new Fight(q.setup).run();
     else if (q.kind === 'between') answer = 'go';
+    else if (q.kind === 'event') answer = q.suggested;
     else if (q.kind === 'council') {
       // the bots: trust always trusts; cautious and orders steer around serious warnings when they can
       const serious = q.warnings.some((w) => w.kind !== 'discipline' && w.kind !== 'bigRoom');
@@ -137,6 +144,17 @@ export function* delveSteps(setup: RunSetup): Generator<DelveRequest, RunResult,
   const tier = TIERS[setup.tier];
   const tierIndex = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'].indexOf(setup.tier) + 1;
   const rng = stream(setup.seed, 'run');
+  // equipment drops roll on their own dice, so they never shift anything else
+  const itemRng = stream(setup.seed, 'items');
+  const found: string[] = [];
+  const dropPool = Object.entries(ITEMS).filter(([, it]) => it.tier <= tierIndexOf(setup.tier)).map(([id]) => id);
+  const rollItems = (rolls: number, entry: LedgerEntry) => {
+    for (let i = 0; i < rolls; i++) if (dropPool.length && itemRng.next() < ITEMS_DATA.dropChance) {
+      const id = dropPool[Math.floor(itemRng.next() * dropPool.length)];
+      found.push(id);
+      entry.gained.push(`found ${ITEMS[id].name}`);
+    }
+  };
   const leaderRng = stream(setup.seed, 'leader');
   const slots = setup.packSlots ?? 8;
   // the party brings torches for the planned depth (the Market sells them in the full game)
@@ -275,6 +293,7 @@ export function* delveSteps(setup: RunSetup): Generator<DelveRequest, RunResult,
     entry.gained.push(`${Math.round(gainedXp)} XP`);
     const loot = LOOT[n.type] ?? LOOT.fight!;
     addLoot(loot[0] + (n.named ? 3 : 0), loot[1] * fl, entry.gained, entry.lost);
+    rollItems(loot[0] + (n.named ? 3 : 0), entry);
     return 'won';
   }
 
@@ -384,14 +403,37 @@ export function* delveSteps(setup: RunSetup): Generator<DelveRequest, RunResult,
         entry.gained.push('rest (+25% HP)');
       } else if (next.type === 'treasure') {
         addLoot(2, 14 * floor, entry.gained, entry.lost);
+        rollItems(3, entry);
       } else if (next.type === 'shrine') {
         for (const h of active()) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * 0.1);
         entry.gained.push('blessing (+10% HP)');
       } else if (next.type === 'event') {
-        const r = rng.next();
-        if (r < 0.5) addLoot(1, 8 * floor, entry.gained, entry.lost);
-        else if (r < 0.8) { for (const h of active()) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * 0.1); entry.gained.push('a kind stranger (+10% HP)'); }
-        else { for (const h of active()) h.hp = Math.max(1, h.hp - h.maxHp * 0.1); entry.lost.push('a trap (−10% HP)'); }
+        // an event: a choice, put to the player (or made by the Leader's temperament), then a roll
+        const ev = rng.pick(EVENTS);
+        const open = ev.choices.map((_, i) => i).filter((i) => !ev.choices[i].needsPack || pack.length > 0);
+        const temper = leaderProfile({ id: leaderId, name: '', raceId: heroes.get(leaderId)!.snap.raceId, leadership: heroes.get(leaderId)!.snap.leadership }).temper;
+        // a gamble weighs more the more hurt the party is; bold temperaments shrug a little of it off
+        const score = (i: number) => ev.choices[i].reward * (0.6 + temper.greed) - ev.choices[i].risk * (RUN_RULES.events.riskWeight - partyHp() - temper.pushBias);
+        const suggested = open.reduce((a, b) => (score(b) > score(a) ? b : a));
+        const asked = (yield { kind: 'event', event: ev, open, suggested, entry, maps }) as number;
+        const choice = ev.choices[open.includes(asked) ? asked : suggested];
+        entry.event = { id: ev.id, text: ev.text, choice: choice.label };
+        let roll = rng.next(), o = choice.outcomes[choice.outcomes.length - 1];
+        for (const x of choice.outcomes) { if (roll < x.chance) { o = x; break; } roll -= x.chance; }
+        if (o.say) entry.gained.push(o.say);
+        if (o.loot) addLoot(o.loot.items, o.loot.each * floor, entry.gained, entry.lost);
+        if (o.heal) { for (const h of active()) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * o.heal.pct); entry.gained.push(`+${Math.round(o.heal.pct * 100)}% HP`); }
+        if (o.hurt) { for (const h of active()) h.hp = Math.max(1, h.hp - h.maxHp * o.hurt.pct); entry.lost.push(`−${Math.round(o.hurt.pct * 100)}% HP`); }
+        if (o.torch) { torch = Math.max(0, torch + o.torch.n); (o.torch.n > 0 ? entry.gained : entry.lost).push(`${o.torch.n > 0 ? '+' : '−'}${Math.abs(o.torch.n)} torch`); }
+        if (o.embers) { embers = Math.min(EMBER_CAP, embers + o.embers.n); entry.gained.push(`+${o.embers.n} ember`); }
+        if (o.xp) { xp += o.xp.n * floor; entry.gained.push(`${o.xp.n * floor} XP`); }
+        if (o.dropItem && pack.length) { for (let k = 0; k < o.dropItem.n && pack.length; k++) { const v = pack.splice(pack.indexOf(Math.min(...pack)), 1)[0]; entry.lost.push(`offered item (${v})`); } }
+        if (o.reveal) { for (const n of map.nodes) { n.seen = true; n.known = true; } entry.gained.push('the floor revealed'); }
+        if (o.ambush) {
+          const res = yield* fightRoom({ ...next, type: o.ambush.room === 'elite' ? 'elite' : 'fight' }, floor, entry, false);
+          if (res === 'lost') { outcome = 'wipe'; yield { kind: 'room', entry, maps }; break; }
+          if (res === 'fled') { outcome = yield* walkHome(next, floor, roomsHome, entry); yield { kind: 'room', entry, maps }; break; }
+        }
       }
       yield { kind: 'room', entry, maps };
       if (next.type === 'stairs') break;
@@ -406,7 +448,7 @@ export function* delveSteps(setup: RunSetup): Generator<DelveRequest, RunResult,
     carried: all.filter((h) => h.alive && h.carried).map((h) => h.snap.id),
     leaderDied, xp, pack: { items: pack.length, value: banked }, banked, lostValue, namedMet, namedSpotted,
     policy, warnings: warnCount, turnBackUsed, thisWayUsed, embersSpent, fellBack, rares: { killed: raresKilled, escaped: raresEscaped }, calls: callCounts,
-    decisions, ledger, maps,
+    decisions, ledger, maps, found: outcome === 'wipe' ? [] : found,
     heroes: Object.fromEntries(all.map((h) => [h.snap.id, { hp: Math.round(Math.max(0, h.hp)), maxHp: h.maxHp, fell: !h.alive, carried: h.carried, dealt: h.dealt, healed: h.healed, kills: h.kills }])),
   };
 }

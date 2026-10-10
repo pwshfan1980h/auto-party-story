@@ -1,6 +1,15 @@
 // Generated sound (DESIGN §5a): crunchy, low and never shrill. Everything is synthesised with WebAudio,
 // so there are no sample files. A master low-pass keeps highs soft, and a short dungeon reverb glues it.
+import voicesJson from '../../data/voices.json';
+
 export type Voice = 'phys' | 'fire' | 'frost' | 'shadow' | 'holy' | 'storm' | 'poison';
+export type Mood = 'shout' | 'pain' | 'cheer' | 'murmur';
+interface VoiceDef { pitch: number; rate: number; grit: number; formant: number }
+const VOICES = voicesJson as unknown as { races: Record<string, Record<'m' | 'f', VoiceDef>>; moods: Record<Mood, { pitch: number; rate: number; loud: number; fall: number }> };
+/** Vowel formants (F1, F2), kept low: no squeaky highs. */
+const VOWELS: [number, number][] = [[730, 1090], [530, 1840], [400, 2000], [570, 840], [440, 1020], [660, 1700]];
+const CONSONANTS = [2200, 3000, 1600, 900, 0, 0];
+const strHash = (s: string) => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
 
 const VOL_KEY = 'aps-volume';
 
@@ -267,6 +276,44 @@ export class Sfx {
   sizzle(pan: number) {
     if (!this.gate('sizzle', 0.3)) return;
     this.noise(this.out(pan, 0.15), this.now, 0.45, 0.16, 'bandpass', 2200, 1400, 3, 0.01);
+  }
+
+  /**
+   * Gibberish speech: a buzz at the speaker's pitch shaped through vowel formants, syllable by
+   * syllable, with breathy consonants. The same words from the same speaker always sound the same.
+   */
+  voice(race: string, sex: 'm' | 'f', text: string, mood: Mood, pan = 0) {
+    if (!this.gate(`voice${race}${sex}`, 0.35)) return;
+    const v = VOICES.races[race]?.[sex] ?? VOICES.races.human.m, md = VOICES.moods[mood];
+    const ctx = this.ctx!, o = this.out(pan, 0.25, v.grit > 0.3);
+    let h = strHash(`${race}${sex}${text}`);
+    const rnd = () => { h = Math.imul(h ^ (h >>> 15), 2246822519) >>> 0; return h / 4294967296; };
+    const syllables = Math.max(2, Math.min(7, Math.round(text.length / 4)));
+    const dur = 1 / (v.rate * md.rate);
+    let t = this.now + 0.02;
+    for (let i = 0; i < syllables; i++) {
+      const k = i / Math.max(1, syllables - 1);
+      // intonation: the line rises or falls across its length, with a little wobble per syllable
+      const p0 = v.pitch * md.pitch * (1 + (md.fall - 1) * k) * (0.94 + rnd() * 0.12);
+      const [f1, f2] = VOWELS[Math.floor(rnd() * VOWELS.length)];
+      const cons = CONSONANTS[Math.floor(rnd() * CONSONANTS.length)];
+      if (cons) this.noise(o, t, 0.035, 0.12 * md.loud, 'bandpass', cons * Math.min(1, v.formant), cons * 0.8, 3, 0.004);
+      const src = ctx.createOscillator();
+      src.type = 'sawtooth';
+      src.frequency.setValueAtTime(p0, t + 0.03);
+      src.frequency.linearRampToValueAtTime(p0 * (mood === 'pain' ? 0.8 : 0.97), t + 0.03 + dur);
+      const g = ctx.createGain();
+      this.env(g, t + 0.03, 0.22 * md.loud, 0.02, dur * 0.85);
+      for (const [f, q, amp] of [[f1, 6, 1], [f2, 8, 0.6]] as const) {
+        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = Math.min(2200, f * v.formant); bp.Q.value = q;
+        const a = ctx.createGain(); a.gain.value = amp;
+        src.connect(bp).connect(a).connect(g);
+      }
+      if (v.grit > 0.05) this.noise(g, t + 0.03, dur * 0.8, v.grit * 0.25, 'bandpass', f1 * v.formant, f1 * v.formant, 2, 0.01);
+      g.connect(o);
+      src.start(t + 0.03); src.stop(t + 0.05 + dur);
+      t += dur * (0.9 + rnd() * 0.25);
+    }
   }
 
   // ---------- the delve ----------

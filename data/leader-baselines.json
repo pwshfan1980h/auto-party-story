@@ -6,64 +6,64 @@
     {
      "hp": 0.3,
      "win": 0.725,
-     "hpCost": 0.087,
+     "hpCost": 0.089,
      "deaths": 0.297
     },
     {
      "hp": 0.5,
-     "win": 0.883,
-     "hpCost": 0.069,
-     "deaths": 0.119
+     "win": 0.875,
+     "hpCost": 0.07,
+     "deaths": 0.128
     },
     {
      "hp": 0.7,
-     "win": 0.95,
-     "hpCost": 0.125,
+     "win": 0.942,
+     "hpCost": 0.107,
      "deaths": 0.067
     },
     {
      "hp": 0.9,
-     "win": 1,
-     "hpCost": 0.207,
-     "deaths": 0.006
+     "win": 0.992,
+     "hpCost": 0.196,
+     "deaths": 0.017
     },
     {
      "hp": 1,
      "win": 0.958,
-     "hpCost": 0.305,
-     "deaths": 0.056
+     "hpCost": 0.285,
+     "deaths": 0.05
     }
    ],
    "elite": [
     {
      "hp": 0.3,
-     "win": 0.642,
-     "hpCost": 0.114,
-     "deaths": 0.378
+     "win": 0.608,
+     "hpCost": 0.121,
+     "deaths": 0.406
     },
     {
      "hp": 0.5,
-     "win": 0.917,
-     "hpCost": 0.072,
-     "deaths": 0.1
+     "win": 0.875,
+     "hpCost": 0.093,
+     "deaths": 0.147
     },
     {
      "hp": 0.7,
-     "win": 0.9,
-     "hpCost": 0.174,
-     "deaths": 0.114
+     "win": 0.933,
+     "hpCost": 0.152,
+     "deaths": 0.078
     },
     {
      "hp": 0.9,
      "win": 0.958,
-     "hpCost": 0.289,
-     "deaths": 0.056
+     "hpCost": 0.285,
+     "deaths": 0.058
     },
     {
      "hp": 1,
-     "win": 0.983,
-     "hpCost": 0.321,
-     "deaths": 0.022
+     "win": 0.975,
+     "hpCost": 0.315,
+     "deaths": 0.028
     }
    ],
    "horde": [
@@ -75,59 +75,59 @@
     },
     {
      "hp": 0.5,
-     "win": 0.05,
-     "hpCost": 0.479,
-     "deaths": 0.958
+     "win": 0.042,
+     "hpCost": 0.483,
+     "deaths": 0.967
     },
     {
      "hp": 0.7,
-     "win": 0.633,
-     "hpCost": 0.284,
-     "deaths": 0.375
+     "win": 0.6,
+     "hpCost": 0.301,
+     "deaths": 0.408
     },
     {
      "hp": 0.9,
      "win": 0.983,
-     "hpCost": 0.239,
-     "deaths": 0.019
+     "hpCost": 0.228,
+     "deaths": 0.022
     },
     {
      "hp": 1,
      "win": 1,
-     "hpCost": 0.259,
-     "deaths": 0.003
+     "hpCost": 0.239,
+     "deaths": 0
     }
    ],
    "boss": [
     {
      "hp": 0.3,
-     "win": 0.325,
-     "hpCost": 0.204,
-     "deaths": 0.686
+     "win": 0.375,
+     "hpCost": 0.195,
+     "deaths": 0.647
     },
     {
      "hp": 0.5,
-     "win": 0.675,
-     "hpCost": 0.196,
-     "deaths": 0.358
+     "win": 0.7,
+     "hpCost": 0.189,
+     "deaths": 0.347
     },
     {
      "hp": 0.7,
-     "win": 0.65,
-     "hpCost": 0.343,
-     "deaths": 0.372
+     "win": 0.708,
+     "hpCost": 0.318,
+     "deaths": 0.325
     },
     {
      "hp": 0.9,
-     "win": 0.825,
-     "hpCost": 0.464,
-     "deaths": 0.217
+     "win": 0.858,
+     "hpCost": 0.445,
+     "deaths": 0.183
     },
     {
      "hp": 1,
-     "win": 0.817,
-     "hpCost": 0.52,
-     "deaths": 0.206
+     "win": 0.833,
+     "hpCost": 0.509,
+     "deaths": 0.183
     }
    ]
   },

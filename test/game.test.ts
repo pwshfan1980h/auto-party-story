@@ -135,3 +135,42 @@ describe('Torchwatch upgrades', () => {
     }
   });
 });
+
+describe('items', () => {
+  it('equipping moves gear between the stores and a hero, within the rules', async () => {
+    const { equip } = await import('../src/game/state');
+    const s = newGame(31);
+    const fighter = s.roster.find((h) => h.hero.classId === 'fighter')!;
+    const ranger = s.roster.find((h) => h.hero.classId === 'ranger')!;
+    s.stash = ['swordbreaker', 'tower_shield', 'yew_bow', 'lucky_tooth'];
+    expect(equip(s, fighter.hero.id, 'weapon', 'swordbreaker')).toBeNull();
+    expect(equip(s, fighter.hero.id, 'shield', 'tower_shield')).toBeNull();
+    expect(equip(s, ranger.hero.id, 'weapon', 'yew_bow')).toBeNull();
+    expect(equip(s, ranger.hero.id, 'shield', 'lucky_tooth')).toMatch(/can/);
+    expect(s.stash).toEqual(['lucky_tooth']);
+    expect(equip(s, fighter.hero.id, 'weapon', null)).toBeNull();
+    expect(s.stash).toContain('swordbreaker');
+  });
+
+  it('gear changes what a hero can do', async () => {
+    const { heroStats, autoAttrs } = await import('../src/sim/stats');
+    const attrs = autoAttrs('fighter', 3);
+    const plain = heroStats('fighter', 'human', 3, attrs, 10);
+    const geared = heroStats('fighter', 'human', 3, attrs, 10, ['swordbreaker', 'tower_shield', 'chain_shirt']);
+    expect(geared.disarm).toBeGreaterThan(plain.disarm);
+    expect(geared.block).toBeGreaterThan(plain.block);
+    expect(geared.armor).toBeGreaterThan(plain.armor);
+  });
+
+  it('delves turn up gear, and the stores keep it unless the party wipes', () => {
+    let foundAny = false;
+    for (let seed = 1; seed < 30 && !foundAny; seed++) {
+      const s = newGame(seed);
+      const ids = s.roster.map((h) => h.hero.id);
+      const out = delve(s, { partyIds: ids, leaderId: ids[0], tier: 'I', doctrine: 'depth', fromWaystone: false });
+      if (out.result.outcome === 'wipe') expect(out.result.found).toEqual([]);
+      if (out.result.found.length) { foundAny = true; expect(s.stash).toEqual(out.result.found); }
+    }
+    expect(foundAny).toBe(true);
+  });
+});

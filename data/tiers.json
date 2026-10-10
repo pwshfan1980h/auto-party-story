@@ -16,7 +16,8 @@
         2,
         3
       ],
-      "hazards": 1
+      "hazards": 1,
+      "hazardKinds": ["fog_bank"]
     },
     "normal": {
       "scale": { "hp": 1.6, "power": 1 },

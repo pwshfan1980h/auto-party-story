@@ -76,6 +76,8 @@ export function settleDelve(state: GameState, plan: DelvePlan, result: RunResult
   }
   state.roster = state.roster.filter((h) => h.alive);
   state.coin += result.banked;
+  // what the party carried home goes to the stores; the fallen are buried with their gear
+  state.stash = [...(state.stash ?? []), ...result.found];
   if (result.outcome !== 'wipe') state.waystones[plan.tier] = Math.max(state.waystones[plan.tier] ?? 0, result.floorsReached);
   let unlockedTier: string | undefined;
   const tierIdx = TIER_IDS.indexOf(plan.tier);

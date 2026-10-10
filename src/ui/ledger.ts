@@ -1,6 +1,6 @@
 // The Delve Ledger: what was gained and lost, room by room, before heading back to Torchwatch.
 import type { DelveOutcome } from '../game/expedition';
-import { CLASSES } from '../sim/data';
+import { CLASSES, ITEMS } from '../sim/data';
 import { clear, el } from './dom';
 
 const OUTCOME: Record<string, [string, string]> = {
@@ -29,11 +29,12 @@ export function renderLedger(root: HTMLElement, out: DelveOutcome, onBack: () =>
       el('section', { class: 'panel' },
         el('h2', {}, 'Banked'),
         el('p', {}, `◆ ${r.banked} coin from ${r.pack.items} item${r.pack.items === 1 ? '' : 's'}${r.lostValue ? ` (${r.lostValue} worth left behind or lost)` : ''}.`),
+        r.found.length ? el('p', { class: 'gain' }, `Gear brought home: ${r.found.map((i) => ITEMS[i]?.name ?? i).join(', ')}. It waits in the stores.`) : null,
         el('p', { class: 'muted' }, `Reached floor ${r.floorsReached} · ${r.rooms} rooms · ${r.fightsWon}/${r.fights} fights won`)),
       el('section', { class: 'panel' },
         el('h2', {}, 'Room by room'),
         el('ol', { class: 'rooms' }, ...r.ledger.filter((e) => e.room !== 'start').map((e) => el('li', {},
-          el('span', { class: e.result === 'lost' ? 'warn' : '' }, `F${e.floor} ${e.room}${e.named ? ` (${e.named})` : ''}: ${e.result}`),
+          el('span', { class: e.result === 'lost' ? 'warn' : '' }, `F${e.floor} ${e.room}${e.named ? ` (${e.named})` : ''}${e.event ? `, ${e.event.choice.toLowerCase()}` : ''}: ${e.result}`),
           e.gained.length ? el('span', { class: 'gain' }, ` + ${e.gained.join(', ')}`) : '',
           e.lost.length ? el('span', { class: 'warn' }, ` − ${e.lost.join(', ')}`) : '')))),
       el('button', { class: 'go', type: 'button', onclick: onBack }, 'Back to Torchwatch')),
