@@ -16,6 +16,8 @@ export const TARGETS = {
   matrixCell: [0.25, 0.95],
   wipePerRun: 0.08,
   deathsPerHeroPerRun: [0.05, 0.10],
+  /** Good Player Orders should save lives in elite and boss rooms (deaths per fight vs no orders). */
+  ordersDeathCut: 0.25,
 };
 
 export function fightOnce(classes: string[], tier: string, room: RoomType, seed: number, monsters?: MonsterSpawn[]): FightResult {
