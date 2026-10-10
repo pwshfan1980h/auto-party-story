@@ -86,6 +86,11 @@ export function decide(L: LeaderProfile, truth: PartyState, map: FloorMap, at: n
     if (type === 'shrine' && read.hp < 0.6) score += 0.2;
     if (type === '?') score += temper.streak === 'charge' ? 0.15 : -0.1;
     if (n.named && namedSpotted) score -= LEADERSHIP.namedSignPenalty * 2;
+    // Seasoned+ Leaders look past the next room: half the value of the best room after it
+    if (rank.vision >= 2 && n.known) {
+      const after = n.next.map((c) => map.nodes[c]).filter((c) => c.known);
+      if (after.length) score += 0.5 * Math.max(...after.map((c) => VALUE[c.type] * (0.6 + greed) - DANGER[c.type] * (0.35 + (1 - read.hp) * 1.6)));
+    }
     score += rank.noise * (rng.next() - 0.5) * 2;
     return { node: id, type, score, pref: 0 };
   });

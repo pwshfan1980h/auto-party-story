@@ -38,7 +38,8 @@
         "base": 3,
         "scale": 1.3
       }
-    ]
+    ],
+    "interrupts": true
   },
   "fighter_whirlwind": {
     "name": "Whirlwind",
@@ -102,7 +103,8 @@
         "base": 2,
         "scale": 1.6
       }
-    ]
+    ],
+    "interrupts": true
   },
   "rogue_shadowstep": {
     "name": "Shadowstep",
@@ -319,7 +321,8 @@
         "base": 3,
         "scale": 2.2
       }
-    ]
+    ],
+    "interrupts": true
   },
   "ranger_volley": {
     "name": "Volley",

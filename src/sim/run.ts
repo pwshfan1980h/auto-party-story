@@ -13,6 +13,16 @@ export interface RunHero extends HeroSnapshot {
   leadership: number;
 }
 
+/**
+ * How a headless run answers the Council's warnings (spec 07, 09):
+ * - trust: always trust the Leader (the Leader baseline)
+ * - cautious: on a serious observed warning, use Turn back (once per run) or This way (2 embers) if available
+ * - orders: cautious, plus the good Player Order policy inside fights
+ */
+export type RunPolicy = 'trust' | 'cautious' | 'orders';
+
+export interface RunWarning { kind: 'named' | 'mismatch' | 'returnFuel' | 'discipline'; detail: string }
+
 export interface RunSetup {
   seed: number;
   tier: string;
@@ -22,6 +32,7 @@ export interface RunSetup {
   doctrine?: Doctrine;
   torch?: number;
   packSlots?: number;
+  policy?: RunPolicy;
 }
 
 export interface LedgerEntry {
@@ -35,6 +46,9 @@ export interface LedgerEntry {
   gained: string[];
   lost: string[];
   call?: Decision;
+  /** Observed warnings before committing to this room, and how the policy answered them. */
+  warnings?: RunWarning[];
+  response?: 'trusted' | 'turned back' | 'this way';
 }
 
 export interface RunResult {
@@ -54,6 +68,14 @@ export interface RunResult {
   lostValue: number;
   namedMet: number;
   namedSpotted: number;
+  policy: RunPolicy;
+  warnings: number;
+  turnBackUsed: boolean;
+  thisWayUsed: number;
+  embersSpent: number;
+  fellBack: number;
+  rares: { killed: number; escaped: number };
+  calls: Record<string, number>;
   decisions: Decision[];
   ledger: LedgerEntry[];
   maps: FloorMap[];
@@ -88,6 +110,13 @@ export function runRun(setup: RunSetup): RunResult {
   let floorsReached = 0;
   /** Rooms walked since the entrance: the way home, unless a campfire offers a shortcut. */
   let roomsHome = 0;
+  const policy: RunPolicy = setup.policy ?? 'trust';
+  let embers = 3;
+  const EMBER_CAP = 3;
+  let embersSpent = 0, warnCount = 0, thisWayUsed = 0, fellBack = 0, raresKilled = 0, raresEscaped = 0;
+  let turnBackUsed = false;
+  let thisWayFloor = -1;
+  const callCounts: Record<string, number> = {};
 
   const active = () => [...heroes.values()].filter((h) => h.alive && !h.carried);
   const partyHp = () => {
@@ -122,10 +151,13 @@ export function runRun(setup: RunSetup): RunResult {
     if (next) leaderId = next.snap.id;
   };
 
-  function fightRoom(n: MapNode, fl: number, entry: LedgerEntry, ambush = false): boolean {
+  function fightRoom(n: MapNode, fl: number, entry: LedgerEntry, ambush = false): 'won' | 'lost' | 'fled' {
     const roomType: RoomType = n.type === 'elite' || n.type === 'horde' || n.type === 'boss' ? n.type : 'normal';
     const dark = torch <= 0 || ambush;
     const monsters = buildEncounter(setup.tier, roomType, fl + (dark ? 2 : 0), stream(setup.seed, 'enc', fl, n.id), n.named);
+    ensureLeader();
+    const lh = heroes.get(leaderId)!;
+    const LP = leaderProfile({ id: lh.snap.id, name: lh.snap.name, raceId: lh.snap.raceId, leadership: lh.snap.leadership });
     if (n.named) { namedMet++; entry.named = n.named; }
     const team = active();
     const before = team.map((h) => (h.hp < 0 ? 1 : h.hp / h.maxHp));
@@ -133,8 +165,16 @@ export function runRun(setup: RunSetup): RunResult {
       seed: setup.seed, key: [fl, n.id], tier: setup.tier, roomType,
       heroes: team.map((h) => ({ ...h.snap, hp: h.hp < 0 ? undefined : h.hp, energy: h.energy })),
       monsters,
+      leader: { heroId: lh.snap.id, rank: LP.rank.id as 'novice', noise: LP.rank.noise, temperament: LP.temperament },
+      embers,
+      orderPolicy: policy === 'orders' ? 'good' : 'none',
     });
     const r: FightResult = fight.run();
+    embersSpent += Math.max(0, embers - r.embersLeft);
+    embers = r.embersLeft;
+    for (const [k, v] of Object.entries(r.calls)) callCounts[k] = (callCounts[k] ?? 0) + v;
+    raresEscaped += r.escaped.length;
+    if (r.escaped.length) entry.lost.push(`a Rare got away`);
     fights++;
     fightSeconds += r.duration;
     entry.secs = r.duration;
@@ -153,15 +193,27 @@ export function runRun(setup: RunSetup): RunResult {
     entry.mvp = mvp?.id;
     const after = team.map((h) => (h.alive && !h.carried ? h.hp / h.maxHp : 0));
     hpLoss.push(before.reduce((s, b, i) => s + Math.max(0, b - after[i]), 0) / team.length);
+    if (r.result === 'fled') {
+      // Fall back!: the party got out, at the cost of one pack item and a torch's worth of fuel
+      fellBack++;
+      entry.result = 'lost';
+      for (const h of heroes.values()) if (h.alive && h.carried) { h.alive = false; entry.lost.push(`${h.snap.name} was left behind`); }
+      if (pack.length) { const v = pack.splice(Math.floor(rng.next() * pack.length), 1)[0]; lostValue += v; entry.lost.push(`dropped item (${v}) in the retreat`); }
+      torch = Math.max(0, torch - 1);
+      return 'fled';
+    }
     if (r.result !== 'victory') {
       entry.result = 'lost';
       for (const h of heroes.values()) if (h.alive) { h.alive = false; if (!entry.lost.includes(`${h.snap.name} fell`)) entry.lost.push(`${h.snap.name} fell`); }
       lostValue += pack.reduce((s, v) => s + v, 0);
       entry.lost.push(`the whole pack (${pack.length} items)`);
       pack.length = 0;
-      return false;
+      return 'lost';
     }
     fightsWon++;
+    embers = Math.min(EMBER_CAP, embers + 1);
+    const rareKills = r.units.filter((u) => u.team === 1 && !u.alive && monsters.some((m) => m.rare && u.defId === m.enemyId) && !r.escaped.includes(u.id)).length;
+    if (rareKills) { raresKilled += rareKills; addLoot(2 * rareKills, 20 * fl, entry.gained, entry.lost); entry.gained.push('Rare spoils'); }
     // field dressing between rooms: survivors patch up, more with a healer along
     const medic = active().some((h) => (CLASSES[h.snap.classId].roles.heal ?? 0) >= 2);
     for (const h of active()) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * (medic ? 0.2 : 0.1));
@@ -172,7 +224,20 @@ export function runRun(setup: RunSetup): RunResult {
     entry.gained.push(`${Math.round(gainedXp)} XP`);
     const loot = LOOT[n.type] ?? LOOT.fight!;
     addLoot(loot[0] + (n.named ? 3 : 0), loot[1] * fl, entry.gained, entry.lost);
-    return true;
+    return 'won';
+  }
+
+  /** Walk home through cleared rooms (free from a campfire). Each room costs torch; in the dark the way back is ambushed. */
+  function walkHome(node: MapNode, fl: number, home: number, entry: LedgerEntry): RunResult['outcome'] {
+    torch -= home;
+    const ambushes = torch < 0 ? Math.ceil(-torch / 2) : 0;
+    if (ambushes) entry.lost.push(`the torch died on the way back: ${ambushes} ambush${ambushes > 1 ? 'es' : ''}`);
+    torch = Math.max(0, torch);
+    for (let a = 0; a < ambushes; a++) {
+      const res = fightRoom({ ...node, id: 900 + a, type: 'fight', named: undefined }, fl, entry, true);
+      if (res === 'lost') return 'wipe';
+    }
+    return 'retreat';
   }
 
   for (let f = 0; f < tier.floorsPerRun && !outcome; f++) {
@@ -197,32 +262,56 @@ export function runRun(setup: RunSetup): RunResult {
       decisions.push(call);
       if (call.namedSpotted) namedSpotted++;
       if (call.decision === 'retreat') {
-        // Walk home through cleared rooms (free from a campfire). Each room costs torch; in the dark, the way back is ambushed.
         const entry: LedgerEntry = { floor, node: at, room: node.type, result: 'passed', secs: 0, gained: [], lost: [], call };
         ledger.push(entry);
-        torch -= home;
-        const ambushes = torch < 0 ? Math.ceil(-torch / 2) : 0;
-        if (ambushes) entry.lost.push(`the torch died on the way back: ${ambushes} ambush${ambushes > 1 ? 'es' : ''}`);
-        torch = Math.max(0, torch);
-        let survived = true;
-        for (let a = 0; a < ambushes && survived; a++) survived = fightRoom({ ...node, id: 900 + a, type: 'fight', named: undefined }, floor, entry, true);
-        outcome = survived ? 'retreat' : 'wipe';
+        outcome = walkHome(node, floor, home, entry);
         break;
       }
       if (call.next === undefined) break;
-      at = call.next;
+      // Warnings the player can observe before committing (spec 07): never hidden contents, only signs and known facts.
+      let target = call.next;
+      const observe = (id: number): RunWarning[] => {
+        const n = map.nodes[id], w: RunWarning[] = [];
+        if (n.named && n.seen) w.push({ kind: 'named', detail: 'claw marks and an unnatural silence' });
+        if (n.known && (n.type === 'elite' || n.type === 'horde' || n.type === 'boss') && partyHp() < 0.5) w.push({ kind: 'mismatch', detail: `a ${n.type} room with the party at ${Math.round(partyHp() * 100)}%` });
+        if (torch - 1 <= roomsHome + 1) w.push({ kind: 'returnFuel', detail: `torch ${torch} with ${roomsHome + 1} rooms back` });
+        return w;
+      };
+      const warnings = observe(target);
+      if (call.disciplineBroken) warnings.push({ kind: 'discipline', detail: 'the Leader ignored the Standing Orders' });
+      let response: LedgerEntry['response'];
+      if (warnings.length) {
+        warnCount++;
+        response = 'trusted';
+        const serious = warnings.some((w) => w.kind !== 'discipline');
+        if (policy !== 'trust' && serious) {
+          const alt = call.options.map((o) => o.node).filter((id) => id !== target && observe(id).length === 0 && map.nodes[id].known);
+          if (alt.length && embers >= 2 && thisWayFloor !== floor) {
+            target = alt[0]; embers -= 2; embersSpent += 2; thisWayUsed++; thisWayFloor = floor; response = 'this way';
+          } else if (!turnBackUsed) {
+            turnBackUsed = true; response = 'turned back';
+            const entry: LedgerEntry = { floor, node: at, room: node.type, result: 'passed', secs: 0, gained: [], lost: [], call, warnings, response };
+            ledger.push(entry);
+            outcome = walkHome(node, floor, home, entry);
+            break;
+          }
+        }
+      }
+      at = target;
       const next = map.nodes[at];
       next.visited = true;
       torch = Math.max(0, torch - 1);
       rooms++;
       roomsHome++;
-      const entry: LedgerEntry = { floor, node: at, room: next.type, named: next.named, result: 'passed', secs: 0, gained: [], lost: [], call };
+      const entry: LedgerEntry = { floor, node: at, room: next.type, named: next.named, result: 'passed', secs: 0, gained: [], lost: [], call, warnings: warnings.length ? warnings : undefined, response };
       ledger.push(entry);
       if (FIGHT_TYPES.has(next.type) || next.named) {
         const res = fightRoom(next, floor, entry);
-        if (!res) { outcome = 'wipe'; break; }
+        if (res === 'lost') { outcome = 'wipe'; break; }
+        if (res === 'fled') { outcome = walkHome(next, floor, roomsHome, entry); break; }
         if (next.type === 'boss') { outcome = 'cleared'; break; }
       } else if (next.type === 'campfire') {
+        embers = Math.min(EMBER_CAP, embers + 1);
         for (const h of active()) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * 0.25);
         entry.gained.push('rest (+25% HP)');
       } else if (next.type === 'treasure') {
@@ -248,6 +337,7 @@ export function runRun(setup: RunSetup): RunResult {
     died: all.filter((h) => !h.alive).map((h) => h.snap.id),
     carried: all.filter((h) => h.alive && h.carried).map((h) => h.snap.id),
     leaderDied, xp, pack: { items: pack.length, value: banked }, banked, lostValue, namedMet, namedSpotted,
+    policy, warnings: warnCount, turnBackUsed, thisWayUsed, embersSpent, fellBack, rares: { killed: raresKilled, escaped: raresEscaped }, calls: callCounts,
     decisions, ledger, maps,
     heroes: Object.fromEntries(all.map((h) => [h.snap.id, { hp: Math.round(Math.max(0, h.hp)), maxHp: h.maxHp, fell: !h.alive, carried: h.carried, dealt: h.dealt, healed: h.healed, kills: h.kills }])),
   };

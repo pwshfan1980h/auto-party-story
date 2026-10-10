@@ -1,15 +1,113 @@
 {
-  "burn":       { "kind": "debuff", "stacking": "stack", "maxStacks": 5, "tick": { "dmgType": "fire", "ofCasterSpell": 0.10 } },
-  "poison":     { "kind": "debuff", "stacking": "stack", "maxStacks": 5, "tick": { "dmgType": "poison", "ofCasterSpell": 0.08 }, "mods": { "healTaken": -0.2 } },
-  "bleed":      { "kind": "debuff", "stacking": "stack", "maxStacks": 5, "tick": { "dmgType": "slash", "ofCasterSpell": 0.08 } },
-  "slow":       { "kind": "debuff", "stacking": "refresh", "mods": { "move": -0.3, "atkSpeed": -0.3 } },
-  "armorbreak": { "kind": "debuff", "stacking": "stack", "maxStacks": 3, "mods": { "armor": -6 } },
-  "stun":       { "kind": "cc", "stacking": "refresh", "flags": ["stun"] },
-  "root":       { "kind": "cc", "stacking": "refresh", "flags": ["root"] },
-  "sleep":      { "kind": "cc", "stacking": "refresh", "flags": ["sleep"], "breakOnDamage": true },
-  "taunted":    { "kind": "cc", "stacking": "refresh", "flags": ["taunted"] },
-  "might":      { "kind": "buff", "stacking": "refresh", "mods": { "damageDealt": 0.15 } },
-  "ward":       { "kind": "buff", "stacking": "refresh", "mods": { "damageTaken": -0.25 } },
-  "haste":      { "kind": "buff", "stacking": "refresh", "mods": { "move": 0.3, "atkSpeed": 0.3 } },
-  "downed":     { "kind": "cc", "stacking": "refresh", "flags": ["downed"] }
+  "burn": {
+    "kind": "debuff",
+    "stacking": "stack",
+    "maxStacks": 5,
+    "tick": {
+      "dmgType": "fire",
+      "ofCasterSpell": 0.1
+    }
+  },
+  "poison": {
+    "kind": "debuff",
+    "stacking": "stack",
+    "maxStacks": 5,
+    "tick": {
+      "dmgType": "poison",
+      "ofCasterSpell": 0.08
+    },
+    "mods": {
+      "healTaken": -0.2
+    }
+  },
+  "bleed": {
+    "kind": "debuff",
+    "stacking": "stack",
+    "maxStacks": 5,
+    "tick": {
+      "dmgType": "slash",
+      "ofCasterSpell": 0.08
+    }
+  },
+  "slow": {
+    "kind": "debuff",
+    "stacking": "refresh",
+    "mods": {
+      "move": -0.3,
+      "atkSpeed": -0.3
+    }
+  },
+  "armorbreak": {
+    "kind": "debuff",
+    "stacking": "stack",
+    "maxStacks": 3,
+    "mods": {
+      "armor": -6
+    }
+  },
+  "stun": {
+    "kind": "cc",
+    "stacking": "refresh",
+    "flags": [
+      "stun"
+    ]
+  },
+  "root": {
+    "kind": "cc",
+    "stacking": "refresh",
+    "flags": [
+      "root"
+    ]
+  },
+  "sleep": {
+    "kind": "cc",
+    "stacking": "refresh",
+    "flags": [
+      "sleep"
+    ],
+    "breakOnDamage": true
+  },
+  "taunted": {
+    "kind": "cc",
+    "stacking": "refresh",
+    "flags": [
+      "taunted"
+    ]
+  },
+  "might": {
+    "kind": "buff",
+    "stacking": "refresh",
+    "mods": {
+      "damageDealt": 0.15
+    }
+  },
+  "ward": {
+    "kind": "buff",
+    "stacking": "refresh",
+    "mods": {
+      "damageTaken": -0.25
+    }
+  },
+  "haste": {
+    "kind": "buff",
+    "stacking": "refresh",
+    "mods": {
+      "move": 0.3,
+      "atkSpeed": 0.3
+    }
+  },
+  "downed": {
+    "kind": "cc",
+    "stacking": "refresh",
+    "flags": [
+      "downed"
+    ]
+  },
+  "shaken": {
+    "kind": "debuff",
+    "stacking": "refresh",
+    "mods": {
+      "damageDealt": -0.1
+    }
+  }
 }

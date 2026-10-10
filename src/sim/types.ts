@@ -79,6 +79,8 @@ export interface AbilityDef {
   friendly?: boolean;
   /** Bonus multiplier when hitting from behind (Backstab). */
   behindMult?: number;
+  /** Hitting a winding-up enemy cancels its action. */
+  interrupts?: boolean;
   cine?: number;
 }
 

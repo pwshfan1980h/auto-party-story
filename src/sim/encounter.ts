@@ -4,6 +4,8 @@ import type { MonsterSpawn } from './fight';
 import type { Rng } from './rng';
 import type { RoomType } from './types';
 
+export const RARE_CHANCE = 0.015;
+
 function pick(rng: Rng, table: Record<string, number>): string {
   const entries = Object.entries(table);
   let r = rng.next() * entries.reduce((s, [, w]) => s + w, 0);
@@ -33,5 +35,7 @@ export function buildEncounter(tierId: string, room: RoomType, level: number, rn
     if (room === 'elite' && pool.elites) out.push({ enemyId: pick(rng, pool.elites), level, rank: 'elite' });
   }
   if (named) out.push({ enemyId: named, level: level + (ENEMIES[named].levelBonus ?? 0) });
+  // Rares: a small chance for any ordinary enemy to be a shiny one (spec 11)
+  for (const m of out) if (!m.rank && !ENEMIES[m.enemyId].rank && rng.chance(RARE_CHANCE)) m.rare = true;
   return out;
 }
