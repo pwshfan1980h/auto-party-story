@@ -280,6 +280,7 @@ export class Fight {
     this.units.push(u);
     this.byId.set(u.id, u);
     this.emit('spawn', { unit: u.id, def: u.defId, team: u.team, x: r2(u.x), y: r2(u.y) });
+    this.unitInfo(u);
     return u;
   }
 
@@ -321,6 +322,11 @@ export class Fight {
     // stagger first actions so a room doesn't attack in lockstep
     u.cooldowns[u.basic] = rng.next() * 0.8;
     return u;
+  }
+
+  /** View-only: what the renderer needs to draw a unit (not part of the determinism hash). */
+  private unitInfo(u: Unit) {
+    this.emit('unitinfo', { unit: u.id, def: u.defId, team: u.team, kind: u.kind, maxHp: u.base.maxHp, radius: u.base.radius, rare: u.rare, x: r2(u.x), y: r2(u.y) }, true);
   }
 
   // ----- helpers -----
@@ -409,7 +415,7 @@ export class Fight {
     for (const u of ordered) this.move(u);
     for (const u of ordered) this.act(u);
     if (this.full && this.tick % 5 === 0) {
-      this.emit('pos', { u: this.units.filter((u) => u.alive).map((u) => [u.id, r2(u.x), r2(u.y), r2(Math.atan2(u.fy, u.fx))]) }, true);
+      this.emit('pos', { u: this.units.filter((u) => u.alive).map((u) => [u.id, r2(u.x), r2(u.y), r2(Math.atan2(u.fy, u.fx)), Math.max(0, Math.round(u.hp)), Math.round(u.energy)]) }, true);
     }
     this.checkEnd();
   }
@@ -853,6 +859,7 @@ export class Fight {
           m.kind = 'summon';
           if (e.dur) m.summonLeft = e.dur;
           this.emit('summon', { owner: u.id, unit: m.id, def });
+          this.unitInfo(m);
           this.teamCache[m.team].push(m);
         }
         return;
