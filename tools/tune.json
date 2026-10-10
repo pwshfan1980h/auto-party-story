@@ -1,0 +1,14 @@
+{
+  "_doc": "Knobs the auto-tuner may move (npm run tune). path is file.key.key...; step is the first step size; the search never leaves [min, max].",
+  "params": [
+    { "path": "monsters.scale.hp", "min": 1.6, "max": 4.0, "step": 0.2 },
+    { "path": "monsters.scale.power", "min": 0.9, "max": 2.0, "step": 0.1 },
+    { "path": "monsters.ranks.elite.hp", "min": 1.4, "max": 3.2, "step": 0.2 },
+    { "path": "monsters.ranks.elite.power", "min": 1.1, "max": 1.9, "step": 0.1 },
+    { "path": "monsters.ranks.boss.hp", "min": 6, "max": 14, "step": 1 },
+    { "path": "monsters.ranks.boss.power", "min": 1.6, "max": 2.8, "step": 0.15 },
+    { "path": "leadership.ev.heroValuePerLevel", "min": 40, "max": 200, "step": 20 },
+    { "path": "leadership.ev.optimism.seasoned", "min": 0.1, "max": 0.8, "step": 0.15 },
+    { "path": "delve.torch.base", "min": 4, "max": 14, "step": 2 }
+  ]
+}

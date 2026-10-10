@@ -1,7 +1,7 @@
 // A whole Delve run (spec 07 + DESIGN §7): fogged floor maps, many battles on generated
 // battlefields, the torch, the loot pack, Leader decisions, Hardcore permadeath, and the
 // Delve Ledger.
-import { CLASSES, ENEMIES, LEADERSHIP, PROGRESSION, RANKS, TIERS } from './data';
+import { CLASSES, ENEMIES, LEADERSHIP, PROGRESSION, RANKS, TIERS, DELVE } from './data';
 import { FIGHT_TYPES, generateFloor, reveal, type FloorMap, type MapNode, type NodeType } from './delve';
 import { buildEncounter } from './encounter';
 import { LOOT } from './loot';
@@ -94,7 +94,7 @@ export function runRun(setup: RunSetup): RunResult {
   const leaderRng = stream(setup.seed, 'leader');
   const slots = setup.packSlots ?? 8;
   // the party brings torches for the planned depth (the Market sells them in the full game)
-  let torch = setup.torch ?? 8 + 5 * tier.floorsPerRun;
+  let torch = setup.torch ?? DELVE.torch.base + DELVE.torch.perFloor * tier.floorsPerRun;
   const heroes = new Map<string, HeroState>(setup.party.map((h) => [h.id, { snap: h, hp: -1, maxHp: -1, energy: 0, alive: true, carried: false, dealt: 0, healed: 0, kills: 0 }]));
   let leaderId = setup.leaderId;
   let leaderDied = false;
