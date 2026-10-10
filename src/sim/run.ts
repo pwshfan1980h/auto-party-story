@@ -4,6 +4,7 @@
 import { CLASSES, ENEMIES, LEADERSHIP, PROGRESSION, RANKS, TIERS } from './data';
 import { FIGHT_TYPES, generateFloor, reveal, type FloorMap, type MapNode, type NodeType } from './delve';
 import { buildEncounter } from './encounter';
+import { LOOT } from './loot';
 import { Fight, type FightResult, type HeroSnapshot } from './fight';
 import { decide, leaderProfile, type Decision, type Doctrine } from './leader';
 import { stream } from './rng';
@@ -85,7 +86,6 @@ export interface RunResult {
 
 interface HeroState { snap: RunHero; hp: number; maxHp: number; energy: number; alive: boolean; carried: boolean; dealt: number; healed: number; kills: number }
 
-const LOOT: Partial<Record<NodeType, [number, number]>> = { fight: [1, 10], elite: [2, 16], horde: [3, 14], boss: [4, 30], treasure: [2, 14], event: [1, 8] };
 
 export function runRun(setup: RunSetup): RunResult {
   const tier = TIERS[setup.tier];
@@ -259,7 +259,7 @@ export function runRun(setup: RunSetup): RunResult {
       if (node.type === 'boss') break;
       const packValue = pack.reduce((s, v) => s + v, 0) / (slots * 20);
       const home = node.type === 'campfire' ? 0 : roomsHome;
-      const call = decide(L, { hp: partyHp(), fallen: fallen(), torch, pack: pack.length / slots, packValue: Math.min(1, packValue), luck: luck(), tier: tierIndex, floor, roomsHome: home }, map, at, leaderRng, setup.doctrine);
+      const call = decide(L, { hp: partyHp(), fallen: fallen(), torch, pack: pack.length / slots, packValue: Math.min(1, packValue), luck: luck(), tier: tierIndex, floor, roomsHome: home, tierId: setup.tier, packRaw: pack.reduce((s2, v) => s2 + v, 0), heroes: active().length, heroLevel: TIERS[setup.tier].heroLevel }, map, at, leaderRng, setup.doctrine);
       decisions.push(call);
       if (call.namedSpotted) namedSpotted++;
       if (call.decision === 'retreat') call.goodCall = partyHp() < 0.4 || pack.length / slots >= 0.7 || torch <= home + 2 || fallen() > 0;

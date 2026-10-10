@@ -204,8 +204,7 @@ function runs() {
   }
 }
 
-function runStats(tier: string, lname: string, policy: RunPolicy, S: number) {
-  const l = LEADERS[lname];
+function runStats(tier: string, lname: string, policy: RunPolicy, S: number, l = LEADERS[lname]) {
   let died = 0, heroes = 0, banked = 0, wipes = 0, good = 0, calls = 0, warns = 0, turnBack = 0, thisWay = 0, embers = 0, fellBack = 0, raresK = 0, raresE = 0;
   for (let s = 0; s < S; s++) {
     const p = party(PRESETS.starter, tier);
@@ -227,11 +226,25 @@ function leaders() {
     data[`${tier}/${lname}`] = r;
     rows.push([tier, lname, pct(r.wipe), r.deathsPerHero.toFixed(3), r.banked.toFixed(0), r.bankedPerDeath.toFixed(0), pct(r.goodCalls), r.fellBack.toFixed(2)]);
   }
-  table(['Tier', 'Leader', 'Wiped', 'Deaths/hero', 'Banked', 'Banked per death', 'Good calls', 'Fall backs/run'], rows);
+  table(['Tier', 'Leader', 'Wiped', 'Deaths/hero', 'Banked', 'Banked per death', 'Good calls (heuristic)', 'Fall backs/run'], rows);
   json.leaders = data;
+  // the same race at each rank, so rank is measured apart from racial traits
+  md('## Rank ladder (human Leader)');
+  const ladder: (string | number)[][] = [];
+  const ranks: Record<string, Record<string, ReturnType<typeof runStats>>> = {};
+  for (const tier of TIER_LIST) for (const [rank, leadership] of [['novice', 2], ['seasoned', 5], ['veteran', 8], ['master', 10]] as const) {
+    const r = runStats(tier, `human-${rank}`, 'trust', SEEDS, { raceId: 'human', leadership });
+    (ranks[tier] ??= {})[rank] = r;
+    ladder.push([tier, rank, pct(r.wipe), r.deathsPerHero.toFixed(3), r.banked.toFixed(0), r.bankedPerDeath.toFixed(0), pct(r.goodCalls)]);
+  }
+  table(['Tier', 'Rank', 'Wiped', 'Deaths/hero', 'Banked', 'Banked per death', 'Good calls'], ladder);
+  json.rankLadder = ranks;
+  for (const tier of TIER_LIST) {
+    const n = ranks[tier].novice, m = ranks[tier].master;
+    if (m.bankedPerDeath < n.bankedPerDeath * 1.3) flags.push(`Tier ${tier}: human master banks ${m.bankedPerDeath.toFixed(0)} per death vs human novice ${n.bankedPerDeath.toFixed(0)} (target ≥ +30%)`);
+  }
   for (const tier of TIER_LIST) {
     const n = data[`${tier}/novice-orc`] as { goodCalls: number; bankedPerDeath: number }, m = data[`${tier}/master-human`] as { goodCalls: number; bankedPerDeath: number };
-    if (m.goodCalls < n.goodCalls + 0.1) flags.push(`Tier ${tier}: master good calls ${pct(m.goodCalls)} vs novice ${pct(n.goodCalls)} (target: clearly higher)`);
     if (m.bankedPerDeath < n.bankedPerDeath * 1.3) flags.push(`Tier ${tier}: master banks ${m.bankedPerDeath.toFixed(0)} per death vs novice ${n.bankedPerDeath.toFixed(0)}`);
   }
 }

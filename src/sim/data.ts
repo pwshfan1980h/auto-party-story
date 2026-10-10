@@ -9,6 +9,7 @@ import statusesJson from '../../data/statuses.json';
 import tiersJson from '../../data/tiers.json';
 import leadershipJson from '../../data/leadership.json';
 import progressionJson from '../../data/progression.json';
+import baselinesJson from '../../data/leader-baselines.json';
 import type { AbilityDef, Attrs, Role, RuleDef, StatusDef, Stats } from './types';
 
 type StatBlock = Partial<Pick<Stats, 'maxHp' | 'power' | 'spell' | 'armor' | 'move' | 'crit' | 'evasion'>>;
@@ -142,7 +143,12 @@ export const LEADERSHIP = leadershipJson as unknown as {
   expectedHpLossPerFight: number;
   streakThreshold: number;
   namedSignPenalty: number;
+  ev: { heroValuePerLevel: number; lookahead: Record<string, number>; optimism: Record<string, number>; discount: number; dressing: number; doctrineMargin: Record<string, number> };
 };
+
+export interface BaselineRow { hp: number; win: number; hpCost: number; deaths: number }
+/** Measured by `npm run baselines`: tier → room → rows by entering party HP. */
+export const BASELINES = (baselinesJson as unknown as { table: Record<string, Record<string, BaselineRow[]>> }).table;
 
 export const PROGRESSION = progressionJson as { killXpPerLevel: number; roomClearBonus: number; xpCurve: { base: number; exponent: number }; overLevelGap: number; overLevelMult: number; underLevelMult: number; maxLevel: number };
 
