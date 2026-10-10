@@ -207,7 +207,10 @@ export function decide(L: LeaderProfile, truth: PartyState, map: FloorMap, at: n
     const best = Math.max(...options.map((o) => o.score)) * 100;
     // a standing order to push accepts real risk, measured in heroes rather than coin
     const marginEv = (LEADERSHIP.ev.doctrineMargin[doc] ?? 0) - (LEADERSHIP.ev.doctrineHeroRisk[doc] ?? 0) * heroValueOf(truth);
-    if (best < marginEv - push * 40) return result('retreat', 4, `Not worth it: the best room ahead is worth ${Math.round(best)} against what we'd risk.`, 0.65);
+    // temperament leans on the plan in heroes' trained worth: a stubborn Leader carries a fraction of a
+    // hero more, a cautious one less (the replacement-cost floor is about money, not character)
+    const trained = LEADERSHIP.ev.heroValuePerLevel * (truth.heroLevel ?? 2);
+    if (best < marginEv - ((temper.planPush ?? 0) + (doc === 'depth' ? 0.15 : 0)) * trained) return result('retreat', 4, `Not worth it: the best room ahead is worth ${Math.round(best)} against what we'd risk.`, 0.65);
   } else if (allowed(4)) {
     checks[4] = 'pass';
     const visible = options.map((o) => DANGER[o.type]);

@@ -67,33 +67,39 @@
   ],
   "temperaments": {
     "steady": {
+      "planPush": 0,
       "greed": 0.5,
       "pushBias": 0.0,
       "streak": "neutral"
     },
     "stubborn": {
+      "planPush": 0.1,
       "greed": 0.5,
       "pushBias": 0.1,
       "streak": "ignore"
     },
     "farsighted": {
+      "planPush": 0,
       "greed": 0.4,
       "pushBias": 0.0,
       "streak": "neutral",
       "visionBonus": 1
     },
     "cautious": {
+      "planPush": -0.01,
       "greed": 0.8,
       "pushBias": -0.1,
       "streak": "panic"
     },
     "rage": {
+      "planPush": 0.02,
       "greed": 0.5,
       "pushBias": 0.25,
       "streak": "charge",
       "hpFloor": 0.2
     },
     "panic": {
+      "planPush": 0,
       "greed": 0.9,
       "pushBias": 0.0,
       "streak": "panic"
