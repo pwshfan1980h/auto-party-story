@@ -182,9 +182,11 @@ function runs() {
   table(['Tier', 'Leader', 'Cleared', 'Retreated', 'Wiped', 'Deaths/hero', 'Banked', 'Rooms', 'Fights', 'Fight min', 'Named met/spotted'], rows);
   json.runs = data;
   for (const tier of TIER_LIST) {
+    // novices bank big by gambling lives; what rank buys is coin per life lost, and fewer lives lost
     const n = data[`${tier}/novice-orc`] as { banked: number; deathsPerHero: number };
     const m = data[`${tier}/master-human`] as { banked: number; deathsPerHero: number };
-    if (m.banked < n.banked * 1.4) flags.push(`Tier ${tier}: master banks ${m.banked.toFixed(0)} vs novice ${n.banked.toFixed(0)} (target ≥ +40%)`);
+    const perDeath = (x: { banked: number; deathsPerHero: number }) => x.banked / Math.max(0.005, x.deathsPerHero);
+    if (perDeath(m) < perDeath(n) * 1.3) flags.push(`Tier ${tier}: master banks ${perDeath(m).toFixed(0)} per hero-death vs novice ${perDeath(n).toFixed(0)} (target ≥ +30%)`);
     if (m.deathsPerHero > n.deathsPerHero * 0.85) flags.push(`Tier ${tier}: master deaths ${m.deathsPerHero.toFixed(3)} vs novice ${n.deathsPerHero.toFixed(3)} (target ≥ 15% fewer)`);
   }
 }

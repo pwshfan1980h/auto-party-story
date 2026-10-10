@@ -107,6 +107,7 @@
     "heroValuePerLevel": 70,
     "heroValueFloor": 250,
     "wipeAversion": 1,
+    "noiseScale": 0.5,
     "levelFactor": 0.75,
     "fullPackShare": 0.2,
     "lookahead": {
@@ -117,7 +118,7 @@
     },
     "optimism": {
       "novice": 0,
-      "seasoned": 0.313,
+      "seasoned": 0.2,
       "veteran": 0,
       "master": 0
     },
