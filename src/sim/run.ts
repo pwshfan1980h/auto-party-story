@@ -259,7 +259,7 @@ export function runRun(setup: RunSetup): RunResult {
       if (node.type === 'boss') break;
       const packValue = pack.reduce((s, v) => s + v, 0) / (slots * 20);
       const home = node.type === 'campfire' ? 0 : roomsHome;
-      const call = decide(L, { hp: partyHp(), fallen: fallen(), torch, pack: pack.length / slots, packValue: Math.min(1, packValue), luck: luck(), tier: tierIndex, floor, roomsHome: home, tierId: setup.tier, packRaw: pack.reduce((s2, v) => s2 + v, 0), heroes: active().length, heroLevel: TIERS[setup.tier].heroLevel }, map, at, leaderRng, setup.doctrine);
+      const call = decide(L, { hp: partyHp(), fallen: fallen(), torch, pack: pack.length / slots, packValue: Math.min(1, packValue), luck: luck(), tier: tierIndex, floor, roomsHome: home, tierId: setup.tier, packRaw: pack.reduce((s2, v) => s2 + v, 0), heroes: active().length, heroLevel: TIERS[setup.tier].heroLevel, partyLevel: active().reduce((a, h) => a + (h.snap.level ?? 1), 0) / Math.max(1, active().length) }, map, at, leaderRng, setup.doctrine);
       decisions.push(call);
       if (call.namedSpotted) namedSpotted++;
       if (call.decision === 'retreat') call.goodCall = partyHp() < 0.4 || pack.length / slots >= 0.7 || torch <= home + 2 || fallen() > 0;

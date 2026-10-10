@@ -35,11 +35,18 @@ const FILES: Record<string, Record<string, unknown>> = {
 interface Param { path: string; min: number; max: number; step: number }
 const PARAMS = (tuneJson.params as Param[]).filter((p) => !ONLY || ONLY.split(',').some((o) => p.path.includes(o)));
 
+/** A path segment is a key, or [id] for the array element with that id. */
+function step(o: unknown, k: string): unknown {
+  const byId = /^\[(.+)\]$/.exec(k);
+  if (byId) return (o as { id?: string }[]).find((e) => e.id === byId[1]);
+  return (o as Record<string, unknown>)[k];
+}
+
 function locate(path: string): [Record<string, number>, string] {
   const [file, ...keys] = path.split('.');
   let o = FILES[file] as Record<string, unknown>;
   if (!o) throw new Error(`unknown data file in ${path}`);
-  for (const k of keys.slice(0, -1)) { o = o[k] as Record<string, unknown>; if (!o) throw new Error(`no ${k} in ${path}`); }
+  for (const k of keys.slice(0, -1)) { o = step(o, k) as Record<string, unknown>; if (!o) throw new Error(`no ${k} in ${path}`); }
   const last = keys[keys.length - 1];
   if (typeof o[last] !== 'number') throw new Error(`${path} is not a number`);
   return [o as Record<string, number>, last];
@@ -66,6 +73,8 @@ for (const t of TIER_LIST) {
   // rank must pay: Master banks at least 10% more than Seasoned, and novices die at least twice as often as Masters
   BANDS.push({ key: `${t} master/seasoned banked`, band: [1.1, 99], scale: 0.1, weight: 1 });
   BANDS.push({ key: `${t} novice/master deaths`, band: [2, 99], scale: 0.5, weight: 0.5 });
+  // a Master should bank most of what a reckless novice does, while losing far fewer heroes
+  BANDS.push({ key: `${t} master/novice banked`, band: [0.8, 99], scale: 0.15, weight: 1 });
 }
 
 function measure(seeds: number, from = 0, tiers = TIER_LIST): Metrics {
@@ -83,6 +92,7 @@ function measure(seeds: number, from = 0, tiers = TIER_LIST): Metrics {
     m[`${t} seasoned wipe`] = ladder.seasoned.wipe;
     m[`${t} novice wipe`] = ladder.novice.wipe;
     m[`${t} master/seasoned banked`] = ladder.master.banked / Math.max(1, ladder.seasoned.banked);
+    m[`${t} master/novice banked`] = ladder.master.banked / Math.max(1, ladder.novice.banked);
     m[`${t} novice/master deaths`] = ladder.novice.deathsPerHero / Math.max(0.005, ladder.master.deathsPerHero);
   }
   return m;
@@ -183,7 +193,14 @@ function patchFile(path: string, value: number) {
   const [file, ...keys] = path.split('.');
   const fp = join('data', `${file}.json`);
   let text = readFileSync(fp, 'utf8'), pos = 0;
-  for (const k of keys) { const i = text.indexOf(`"${k}"`, pos); if (i < 0) throw new Error(`can't find ${k} for ${path}`); pos = i + k.length + 2; }
+  for (const k of keys) {
+    const byId = /^\[(.+)\]$/.exec(k);
+    const re = byId ? new RegExp(`"id"\\s*:\\s*"${byId[1]}"`, 'g') : new RegExp(`"${k}"`, 'g');
+    re.lastIndex = pos;
+    const hit = re.exec(text);
+    if (!hit) throw new Error(`can't find ${k} for ${path}`);
+    pos = hit.index + hit[0].length;
+  }
   const re = /\s*:\s*(-?\d+(?:\.\d+)?(?:e-?\d+)?)/y;
   re.lastIndex = pos;
   const m = re.exec(text);
@@ -191,7 +208,7 @@ function patchFile(path: string, value: number) {
   const numAt = pos + m[0].length - m[1].length;
   text = text.slice(0, numAt) + String(value) + text.slice(numAt + m[1].length);
   let o = JSON.parse(text);
-  for (const k of keys) o = o[k];
+  for (const k of keys) o = step(o, k);
   if (o !== value) throw new Error(`patching ${path} went wrong; nothing written`);
   writeFileSync(fp, text);
 }
