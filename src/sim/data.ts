@@ -152,7 +152,7 @@ export const LEADERSHIP = leadershipJson as unknown as {
   expectedHpLossPerFight: number;
   streakThreshold: number;
   namedSignPenalty: number;
-  ev: { heroValuePerLevel: number; heroValueFloor: number; wipeAversion: number; levelFactor: number; fullPackShare: number; lookahead: Record<string, number>; optimism: Record<string, number>; discount: number; dressing: number; doctrineMargin: Record<string, number>; doctrineHeroRisk: Record<string, number> };
+  ev: { heroValuePerLevel: number; heroValueFloor: number; wipeAversion: number; noiseScale: number; levelFactor: number; fullPackShare: number; lookahead: Record<string, number>; optimism: Record<string, number>; discount: number; dressing: number; doctrineMargin: Record<string, number>; doctrineHeroRisk: Record<string, number> };
 };
 
 export interface BaselineRow { hp: number; win: number; hpCost: number; deaths: number }

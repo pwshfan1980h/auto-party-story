@@ -151,7 +151,7 @@ export function decide(L: LeaderProfile, truth: PartyState, map: FloorMap, at: n
       // Seasoned+ Leaders weigh each room by expected value, as well as their rank lets them read it
       // misjudgement scales with what's at stake: the party's lives
       const stake = heroValueOf(truth) * (truth.heroes ?? 3);
-      const score = (roomEV(L, truth, map, id, read.hp, depth, greed) + rank.noise * stake * (rng.next() - 0.5) * 2) / 100;
+      const score = (roomEV(L, truth, map, id, read.hp, depth, greed) + rank.noise * LEADERSHIP.ev.noiseScale * stake * (rng.next() - 0.5) * 2) / 100;
       return { node: id, type, score, pref: 0 };
     }
     // danger always counts a little, and much more as the party wears down
