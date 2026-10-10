@@ -1,4 +1,5 @@
 // Auto Party Story, M2: Torchwatch → delve → Delve Ledger → Torchwatch, saved in the browser.
+import { sfx } from '../audio/sfx';
 import { BattleScene } from '../render/scene';
 import { DelvePlayer } from '../ui/delvePlay';
 import { renderLedger } from '../ui/ledger';
@@ -17,6 +18,8 @@ const town = new Town(app, state, { onDelve: startDelve, onAbandon: () => { eras
 town.render();
 
 function startDelve(plan: DelvePlan) {
+  sfx.unlock();
+  sfx.ui('delve');
   // the run is settled and saved before it is shown: Hardcore
   const out = delve(state, plan);
   document.body.classList.add('delving');
@@ -42,6 +45,14 @@ for (const [label, v] of speeds) {
   $('speed').append(b);
 }
 $('skip').onclick = () => player?.skipFight();
+// sound: a mute toggle and a volume slider, remembered per browser
+const soundBtn = $('sound') as HTMLButtonElement, vol = $('vol') as HTMLInputElement;
+const syncSound = () => { soundBtn.setAttribute('aria-pressed', String(!sfx.muted)); soundBtn.textContent = sfx.muted ? 'Sound off' : 'Sound'; vol.value = String(Math.round(sfx.volume * 100)); };
+soundBtn.onclick = () => { sfx.unlock(); sfx.setVolume(sfx.volume, !sfx.muted); syncSound(); };
+vol.oninput = () => { sfx.unlock(); sfx.setVolume(+vol.value / 100, false); syncSound(); };
+syncSound();
+// soft interface clicks in town
+document.addEventListener('click', (e) => { const b = (e.target as HTMLElement).closest('button'); if (b && !document.body.classList.contains('delving')) { sfx.unlock(); sfx.ui(/^Hire/.test(b.textContent ?? '') ? 'coin' : 'click'); } });
 $('ledger').onclick = () => player?.skipAll();
 $('cam').onclick = () => { if (!player) return; player.opts.camera = player.opts.camera === 'off' ? 'subtle' : 'off'; $('cam').setAttribute('aria-pressed', String(player.opts.camera !== 'off')); };
 $('clarity').onclick = () => { if (!player) return; player.opts.clarity = !player.opts.clarity; $('clarity').setAttribute('aria-pressed', String(player.opts.clarity)); };

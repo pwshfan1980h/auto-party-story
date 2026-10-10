@@ -16,57 +16,64 @@ const RANK_SCALE: Record<string, number> = { minion: 0.72, normal: 1, veteran: 1
 // ---------------- skeleton: bones instead of a body ----------------
 
 function skeletonRig(): Rig {
-  const legH = 6, torsoTop = 13, hw = 4, z0 = -2, z1 = 2, headY = 14, headTop = 22, hx = 4, hz0 = -4, hz1 = 4;
-  const f: Frame = { legH, torsoTop, hw, z0, z1, headY, headTop, hx, hz0, hz1, shoulderY: torsoTop, handY: 6, armX: 5 };
+  // human proportions: long shins, a ribcage, and a skull about a fifth of the height
+  const legH = 11, torsoTop = 21, hw = 4, z0 = -2, z1 = 2, headY = 22, headTop = 28, hx = 3, hz0 = -3, hz1 = 3;
+  const f: Frame = { legH, torsoTop, hw, z0, z1, headY, headTop, hx, hz0, hz1, shoulderY: torsoTop, handY: 11, armX: 5 };
   const B = P.bone, S = P.boneShadow, D = P.boneDark;
   const legR = new PartBuilder('legR', [2, legH, 0]), legL = new PartBuilder('legL', [-2, legH, 0]);
   for (const [leg, s] of [[legR, 1], [legL, -1]] as const) {
-    leg.box(s * 2, 1, 0, s * 2, legH - 1, 0, B).set(s * 2, 3, 1, S).box(s * 1, 0, 0, s * 3, 0, 2, B);
+    leg.box(s * 2, 1, 0, s * 2, legH - 1, 0, B).set(s * 2, 6, 1, S).set(s * 2, 5, 0, D).box(s * 1, 0, 0, s * 3, 0, 2, B);
   }
   const torso = new PartBuilder('torso', [0, legH, 0]);
   torso.box(-2, legH, -1, 2, legH + 1, 1, S); // pelvis
   torso.box(0, legH + 2, -1, 0, torsoTop, -1, D); // spine
-  for (let y = legH + 3; y <= torsoTop - 1; y += 2) {
-    for (let x = -3; x <= 3; x++) torso.set(x, y, Math.abs(x) >= 3 ? 0 : 1, B);
-    torso.set(-3, y, -1, S).set(3, y, -1, S);
+  for (let y = legH + 4; y <= torsoTop - 1; y += 2) {
+    const w = y < legH + 6 ? 2 : 3;
+    for (let x = -w; x <= w; x++) torso.set(x, y, Math.abs(x) >= w ? 0 : 1, B);
+    torso.set(-w, y, -1, S).set(w, y, -1, S);
   }
   torso.box(-hw, torsoTop, -1, hw, torsoTop, 0, B); // collarbones
   const armR = new PartBuilder('armR', [5.5, torsoTop, 0], 'torso'), armL = new PartBuilder('armL', [-5.5, torsoTop, 0], 'torso');
   for (const [arm, s] of [[armR, 1], [armL, -1]] as const) {
-    arm.box(s * 5, 8, 0, s * 5, torsoTop, 0, B).set(s * 5, 10, 1, S).box(s * 5, 6, -1, s * 6, 7, 0, B);
+    arm.box(s * 5, 13, 0, s * 5, torsoTop, 0, B).set(s * 5, 16, 1, S).box(s * 5, 11, -1, s * 6, 12, 0, B);
   }
   const head = new PartBuilder('head', [0, headY, 0], 'torso');
-  head.ellipsoid(0, headY + 5, 0, 4.6, 4.4, 4.6, B, 0.06);
-  head.box(-3, headY, -1, 3, headY + 1, 3, B); // jaw
-  for (let x = -2; x <= 2; x += 2) head.set(x, headY + 1, 4, P.ink);
-  for (const s of [-2, 2]) head.ellipsoid(s, headY + 5, 4.2, 1.5, 1.6, 1.2, P.ink, 0).set(s, headY + 5, 5, shade(P.glowCyan, 0.8));
-  head.box(-2.5, headY + 1.5, 4, 2.5, headY + 1.5, 4, P.boneShadow, 0);
-  head.set(0, headY + 3, 5, P.ink).set(0, headY + 3, 4, P.ink);
-  head.paint((_x, y, z) => z < -2 && y > headY + 6, S);
+  head.box(0, headY, -1, 0, headY + 1, -1, D); // neck
+  head.ellipsoid(0, headY + 4, 0, 3.3, 3.1, 3.4, B, 0.06);
+  head.box(-2, headY + 1, 0, 2, headY + 1, 3, B); // jaw
+  for (let x = -1; x <= 1; x++) head.set(x, headY + 1, 3, x === 0 ? P.ink : B);
+  for (const s of [-1.5, 1.5]) head.ellipsoid(s, headY + 4, 3, 1, 1.1, 0.8, P.ink, 0).set(Math.round(s), headY + 4, 4, shade(P.glowCyan, 0.8));
+  head.set(0, headY + 2, 3, P.ink);
+  head.paint((_x, y, z) => z < -1 && y > headY + 4, S);
   return { frame: f, legL, legR, torso, head, armL, armR, extras: [] };
 }
 
 // ---------------- non-humanoid rigs ----------------
 
 function rat(scale: number, big = false): Model {
-  const fur = P.ratFur, dark = P.ratFurDark, pink = P.ratPink;
+  // a sewer rat: long, low and hunched, with a ridge of mangy fur down the spine
+  const fur = P.ratFur, dark = P.ratFurDark, bare = 0x9a7a72;
   const body = new PartBuilder('torso', [0, 4, 0]);
-  body.ellipsoid(0, 5, -1, 4.2, 3.6, 7, fur, 0.14);
-  body.paint((_x, y) => y <= 3, shade(fur, 1.15));
-  const head = new PartBuilder('head', [0, 6, 5], 'torso');
-  head.ellipsoid(0, 6, 7, 3, 2.8, 3.4, fur, 0.12).box(-1, 5, 10, 1, 6, 11, fur).set(0, 6, 12, pink);
+  body.ellipsoid(0, 4.6, -1, 3, 2.8, 8, fur, 0.18);
+  body.ellipsoid(0, 6.6, -2.5, 2, 1.8, 4.8, dark, 0.2); // the hunch
+  body.paint((x, y, z) => (x * 7 + y * 3 + z * 5) % 11 === 0, dark); // mange
+  body.paint((_x, y) => y <= 2, shade(fur, 0.85));
+  if (big) for (let z = -3; z <= 2; z += 2) body.box(-3, 4, z, -3, 6, z, P.boneShadow, 0); // ribs through the skin
+  const head = new PartBuilder('head', [0, 5, 6], 'torso');
+  head.ellipsoid(0, 5.2, 8, 2.1, 2, 2.8, fur, 0.14);
+  head.box(-1, 4, 10, 1, 5.5, 12, fur).box(0, 4, 13, 0, 5, 13, dark); // the snout narrows to a point
+  head.box(-0.5, 3, 12, 0.5, 3.6, 12.5, P.bone, 0); // incisors
   for (const s of [-1, 1]) {
-    head.box(s * 2, 9, 5, s * 3, 11, 6, dark).set(s * 2, 10, 6, pink);
-    head.set(s * 2, 7, 9, P.glowRed);
-    head.line(s * 1, 5, 11, s * 4, 6, 11, P.white);
+    head.box(s * 1.8, 7, 6.5, s * 2.4, 8.5, 7, dark); // ragged ears
+    head.set(s * 1.2, 6, 10, P.glowRed, 0);
+    head.line(s * 0.5, 4.5, 12, s * 3.5, 5, 12, shade(P.bone, 0.8));
   }
-  if (big) head.box(-1, 4, 10, 1, 4, 11, P.white);
-  const tail = new PartBuilder('tail', [0, 4, -7], 'torso');
-  tail.line(0, 4, -8, 0, 2, -13, pink).line(0, 2, -13, 2, 3, -17, pink);
+  const tail = new PartBuilder('tail', [0, 4, -8], 'torso');
+  tail.line(0, 4, -9, 0, 2, -14, bare).line(0, 2, -14, 1, 1, -19, bare).line(1, 1, -19, 3, 1.5, -22, shade(bare, 0.85));
   const legs: Part[] = [];
-  for (const [n, x, z] of [['legFL', 2, 3], ['legFR', -2, 3], ['legBL', 3, -4], ['legBR', -3, -4]] as const) {
+  for (const [n, x, z] of [['legFL', 2, 4], ['legFR', -2, 4], ['legBL', 2.5, -5], ['legBR', -2.5, -5]] as const) {
     const l = new PartBuilder(n, [x, 3, z]);
-    l.box(x, 0, z, x, 2, z + 1, dark).box(x, 0, z + 2, x, 0, z + 2, pink);
+    l.box(x, 0, z, x, 2.5, z, dark).box(x, 0, z + 1, x, 0, z + 1, bare);
     legs.push(l.build());
   }
   const parts = [body.build(), head.build(), tail.build(), ...legs];
@@ -74,46 +81,52 @@ function rat(scale: number, big = false): Model {
 }
 
 function bat(scale: number): Model {
+  // gaunt, all ears and teeth, on torn membranes stretched over long bony fingers
   const body = new PartBuilder('torso', [0, 12, 0]);
-  body.ellipsoid(0, 12, 0, 2.6, 3, 2.4, P.batFur, 0.1);
+  body.ellipsoid(0, 12, 0, 1.8, 3, 1.6, P.batFur, 0.14);
   const head = new PartBuilder('head', [0, 14, 0], 'torso');
-  head.ellipsoid(0, 16, 0.5, 2.6, 2.3, 2.4, P.batFur, 0.1);
-  for (const s of [-1, 1]) head.box(s * 2, 18, 0, s * 2, 20, 0, P.batWingDark).set(s * 1, 16, 3, P.glowRed);
-  head.set(-1, 14, 3, P.white).set(1, 14, 3, P.white);
+  head.ellipsoid(0, 16, 0.5, 1.8, 1.8, 2, P.batFur, 0.12);
+  head.box(-0.5, 15, 2, 0.5, 15.5, 3, shade(P.batFur, 0.8)); // pushed-up snout
+  for (const s of [-1, 1]) {
+    head.line(s * 1, 17, 0, s * 2.5, 21.5, -0.5, P.batWingDark); // tall ears
+    head.set(s * 1, 16.5, 2.3, P.glowRed, 0);
+    head.box(s * 0.6, 14, 2.4, s * 0.6, 14.6, 2.4, P.bone, 0); // fangs
+  }
   const wings: Part[] = [];
   for (const [n, s] of [['wingL', -1], ['wingR', 1]] as const) {
-    const w = new PartBuilder(n, [s * 2, 13, 0], 'torso');
-    for (let i = 1; i <= 9; i++) {
-      const h = 6 - Math.abs(i - 4);
-      w.box(s * (2 + i), 13 - Math.max(0, h - 2), 0, s * (2 + i), 13 + Math.min(3, h), 0, i % 3 === 0 ? P.batWingDark : P.batWing, 0.08);
+    const w = new PartBuilder(n, [s * 1.5, 13, 0], 'torso');
+    const tips: [number, number][] = [[12, 17], [12, 12], [9, 8], [5, 7]];
+    for (const [tx, ty] of tips) w.line(s * 2, 14, 0, s * tx, ty, 0, shade(P.boneDark, 0.8));
+    // the membrane, torn in places
+    for (let x = 2; x <= 11; x++) for (let y = 7; y <= 16; y++) {
+      const inside = y <= 14 + (x - 2) * 0.3 && y >= 14 - (x - 2) * 0.75 + Math.max(0, x - 8) * 0.6;
+      if (inside && (x * 5 + y * 3) % 13 !== 0) w.set(s * x, y, 0, (x + y) % 3 ? P.batWing : P.batWingDark, 0.06);
     }
-    w.line(s * 3, 16, 0, s * 11, 14, 0, P.batFur);
     wings.push(w.build());
   }
   const feet = new PartBuilder('legR', [0, 9, 0]);
-  feet.box(-1, 8, 0, -1, 9, 0, P.batWingDark).box(1, 8, 0, 1, 9, 0, P.batWingDark);
+  feet.box(-1, 7.5, 0, -1, 9, 0, P.batWingDark).box(1, 7.5, 0, 1, 9, 0, P.batWingDark);
   const parts = [body.build(), head.build(), ...wings, feet.build()];
   return { id: 'bat', rig: 'flier', parts, scale, height: modelHeight(parts), style: 'bite' };
 }
 
 function spider(scale: number): Model {
-  const body = new PartBuilder('torso', [0, 5, 0]);
-  const fur = 0x5a4652, furDark = 0x3a2c36;
-  body.ellipsoid(0, 7, -4, 5.4, 4.4, 5.8, fur, 0.16);
-  body.ellipsoid(0, 6, 2.2, 3.2, 2.8, 3, furDark, 0.1);
-  // an hourglass marking on the back
+  // spindly: a small body slung between long, high-kneed legs
+  const fur = 0x6e5a62, furDark = 0x463840;
+  const body = new PartBuilder('torso', [0, 6, 0]);
+  body.ellipsoid(0, 8, -4.5, 4.2, 3.4, 5, fur, 0.18);
+  body.ellipsoid(0, 7, 1.5, 2.4, 2, 2.6, furDark, 0.12);
   for (const [x, z] of [[0, -2], [-1, -3], [1, -3], [0, -4], [-1, -5], [1, -5], [0, -6]]) body.set(x, 11, z, P.spiderMark, 0);
-  const head = new PartBuilder('head', [0, 6, 4], 'torso');
-  head.ellipsoid(0, 6, 5, 2.6, 2.2, 2.2, furDark, 0.1);
-  for (const [x, y] of [[-1, 7], [1, 7], [-2, 6], [2, 6]]) head.set(x, y, 7, P.glowRed, 0);
-  head.box(-1.5, 3, 6.5, -1, 4.5, 8, P.boneShadow).box(1, 3, 6.5, 1.5, 4.5, 8, P.boneShadow);
+  const head = new PartBuilder('head', [0, 7, 3.5], 'torso');
+  head.ellipsoid(0, 7, 4.5, 1.9, 1.6, 1.8, furDark, 0.1);
+  for (const [x, y] of [[-1, 8], [1, 8], [-0.5, 8.5], [0.5, 8.5], [-1.5, 7.5], [1.5, 7.5]]) head.set(x, y, 6, P.glowRed, 0);
+  for (const s of [-1, 1]) head.line(s * 0.8, 6, 6, s * 0.5, 3.5, 7.5, P.spiderMark).set(s * 0.5, 3, 7.5, P.bone, 0); // fangs
   const legs: Part[] = [];
   for (let i = 0; i < 8; i++) {
-    const s2 = i < 4 ? -1 : 1, k = i % 4, z = 3 - k * 2.4;
-    const kz = z + (k - 1.5) * 1.4, fz = z + (k - 1.5) * 2.4;
-    const l = new PartBuilder(`leg${i}`, [s2 * 3, 6, Math.round(z)]);
-    l.line(s2 * 3, 6, z, s2 * 7.5, 10, kz, fur, 1).line(s2 * 7.5, 10, kz, s2 * 10.5, 0, fz, furDark, 1);
-    l.set(s2 * 7.5, 10, kz, P.spiderMark, 0);
+    const s2 = i < 4 ? -1 : 1, k = i % 4, z = 3 - k * 2.2;
+    const kz = z + (k - 1.5) * 1.8, fz = z + (k - 1.5) * 3.2;
+    const l = new PartBuilder(`leg${i}`, [s2 * 2.5, 7, Math.round(z)]);
+    l.line(s2 * 2.5, 7, z, s2 * 7, 14, kz, fur, 1).line(s2 * 7, 14, kz, s2 * 13, 0, fz, furDark, 1);
     legs.push(l.build());
   }
   const parts = [body.build(), head.build(), ...legs];
@@ -121,33 +134,43 @@ function spider(scale: number): Model {
 }
 
 function slime(scale: number, tint: Color = P.slime): Model {
+  // an ooze: no face, just what it hasn't finished digesting
+  const deep = shade(tint, 0.55);
   const body = new PartBuilder('torso', [0, 0, 0]);
-  body.ellipsoid(0, 5, 0, 7, 6, 6.5, tint, 0.08);
-  for (const k of [...body.voxels.keys()]) void k;
-  body.paint((_x, y) => y < 1, shade(tint, 0.7));
-  body.ellipsoid(1, 4, -1, 2.5, 2, 2.5, shade(tint, 0.55), 0);
-  body.paint((x, y, z) => y > 9 && x < 0 && z > 0, shade(tint, 1.3));
-  const face = new PartBuilder('head', [0, 6, 6], 'torso');
-  for (const s of [-2, 2]) face.box(s, 6, 7, s, 8, 7, P.ink, 0).set(s, 8, 7, P.eyeWhite);
-  face.box(-1, 4, 7, 1, 4, 7, shade(tint, 0.45), 0);
+  body.ellipsoid(0, 4.5, 0, 7, 5, 6.5, shade(tint, 0.8), 0.1);
+  body.ellipsoid(2, 7.5, -1, 3.5, 2.5, 3.5, shade(tint, 0.8), 0.1); // lopsided
+  body.paint((x, y, z) => (x * 3 + y * 7 + z * 5) % 9 === 0, deep);
+  body.paint((_x, y) => y < 1, deep);
+  for (const [x, z] of [[-6, 2], [5, 4], [-3, -6], [6, -3]]) body.box(x, 0, z, x, 1, z, deep, 0); // drips
+  const face = new PartBuilder('head', [0, 5, 5], 'torso');
+  // a half-dissolved skull breaking the surface, and a rib poking out of the side
+  face.ellipsoid(-1, 5, 6, 2, 2, 1.6, P.boneShadow, 0.05);
+  face.set(-2, 5, 7.5, P.ink, 0).set(0, 5, 7.5, P.ink, 0).box(-1.5, 3.5, 7, -0.5, 3.5, 7, P.ink, 0);
+  face.line(5, 6, 3, 8, 8, 2, P.boneShadow);
   const parts = [body.build(), face.build()];
   return { id: 'slime', rig: 'blob', parts, scale, height: modelHeight(parts), style: 'bite' };
 }
 
 function ghost(scale: number, caster = true): Model {
-  const G = P.ghost, deep = P.ghostDeep;
-  const body = new PartBuilder('torso', [0, 8, 0]);
-  for (let y = 3; y <= 15; y++) {
-    const r = y < 8 ? 1.2 + (y - 3) * 0.75 : 5;
-    body.ellipsoid(Math.sin(y * 0.7) * 0.8, y, -Math.max(0, 8 - y) * 0.5, r, 0.6, r * 0.9, y < 7 ? deep : G, 0.08);
+  // a wraith: tall and tattered, a hollow hood with two cold eyes, and long clawed hands
+  const G = shade(P.ghostDeep, 0.85), deep = shade(P.ghostDeep, 0.6), dark = 0x14121c;
+  const body = new PartBuilder('torso', [0, 10, 0]);
+  for (let y = 0; y <= 21; y++) {
+    const r = y < 9 ? 0.8 + y * 0.35 : 3.6 - Math.max(0, y - 16) * 0.35;
+    body.ellipsoid(Math.sin(y * 0.6) * 0.6, y, -Math.max(0, 9 - y) * 0.6, r, 0.6, r * 0.75, y < 8 ? deep : G, 0.12);
   }
-  const head = new PartBuilder('head', [0, 16, 0], 'torso');
-  head.ellipsoid(0, 19, 0, 5, 4.6, 4.4, G, 0.06);
-  for (const s of [-2, 2]) head.box(s - (s < 0 ? 1 : 0), 18, 4, s + (s > 0 ? 1 : 0), 20, 4, P.ink, 0);
-  head.ellipsoid(0, 16.5, 4, 1.2, 1.4, 0.6, P.ink, 0);
-  const armR = new PartBuilder('armR', [5, 14, 0], 'torso'), armL = new PartBuilder('armL', [-5, 14, 0], 'torso');
-  armR.line(5, 14, 0, 8, 10, 2, G, 1).set(8, 9, 2, P.ghostGlow);
-  armL.line(-5, 14, 0, -8, 10, 2, G, 1).set(-8, 9, 2, P.ghostGlow);
+  body.paint((x, y, z) => y < 7 && (x * 5 + z * 3 + y) % 4 === 0, dark); // the trailing rags
+  const head = new PartBuilder('head', [0, 22, 0], 'torso');
+  // a cowl drawn forward: an egg of cloth with a deep, dark hollow where a face should be
+  head.ellipsoid(0, 25, -0.6, 2.8, 3.6, 3, G, 0.14);
+  head.ellipsoid(0, 24.4, 1.6, 1.7, 2.4, 1.6, dark, 0);
+  for (const s of [-1, 1]) head.set(s * 0.8, 24.6, 2.4, P.glowCyan, 0);
+  head.line(0, 28, -1.5, 0, 29.5, -3.5, G); // the cowl's tip
+  const armR = new PartBuilder('armR', [3.5, 20, 0], 'torso'), armL = new PartBuilder('armL', [-3.5, 20, 0], 'torso');
+  for (const [arm, s] of [[armR, 1], [armL, -1]] as const) {
+    arm.line(s * 3.5, 20, 0, s * 6.5, 12, 2, G, 1);
+    for (const f of [-1, 0, 1]) arm.line(s * 6.5, 12, 2, s * (7 + f * 0.9), 7, 2.5 + f, P.ghostGlow, 1); // long fingers
+  }
   const parts = [body.build(), head.build(), armR.build(), armL.build()];
   return { id: 'ghost', rig: 'ghost', parts, scale, height: modelHeight(parts), style: caster ? 'caster' : 'bite' };
 }

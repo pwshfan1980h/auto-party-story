@@ -1,6 +1,6 @@
 // The real-time fight: a fixed 20 Hz tick loop with no rendering (spec 02).
 // Phases per tick: timers → projectiles/telegraphs → decisions → movement → actions → deaths/end.
-import { ABILITIES, ARCHETYPES, CLASSES, ENEMIES, ORDERS_DATA, RULES, SPECIES, STATUSES, TIERS } from './data';
+import { ABILITIES, ARCHETYPES, CLASSES, ENEMIES, GEAR, ORDERS_DATA, RULES, SPECIES, STATUSES, TIERS } from './data';
 import { flowDir, flowField, generateField, lineOfSight, SpatialHash, walkableAt, type Field } from './field';
 import { hash32, stream, type Rng } from './rng';
 import { autoAttrs, heroStats, monsterStats, rollDamage } from './stats';
@@ -88,6 +88,8 @@ export interface UnitSummary {
   crits: number;
   hits: number;
   misses: number;
+  parries?: number;
+  blocks?: number;
   ults: number;
   ccSeconds: number;
 }
@@ -372,7 +374,7 @@ export class Fight {
     return m;
   }
 
-  private flag(u: Unit, f: 'stun' | 'root' | 'sleep' | 'taunted'): StatusInst | undefined {
+  private flag(u: Unit, f: 'stun' | 'root' | 'sleep' | 'taunted' | 'fear'): StatusInst | undefined {
     return u.statuses.find((s) => STATUSES[s.id].flags?.includes(f));
   }
 
@@ -576,13 +578,34 @@ export class Fight {
     return flowDir(nav, this.flow(gx, gy), u.x, u.y);
   }
 
+  /**
+   * Face the threat: whoever is in your face, else the foe you're fighting. Kiters backpedal
+   * with their eyes on the enemy; only the frightened and the fleeing turn their backs.
+   */
+  private faceThreat(u: Unit, t: Unit | undefined, intent?: string): boolean {
+    if (intent === 'retreat' || this.flag(u, 'fear')) return false;
+    const foes = this.teamCache[1 - u.team];
+    let near: Unit | undefined, best = 2.5;
+    for (const e of foes) { const d = this.dist(u, e); if (d < best) { best = d; near = e; } }
+    const foe = near ?? (t && t.team !== u.team && t.alive && this.dist(u, t) < 6 ? t : undefined);
+    if (!foe) return false;
+    u.fx = foe.x - u.x; u.fy = foe.y - u.y;
+    return true;
+  }
+
   private move(u: Unit) {
     u.vx = 0; u.vy = 0;
     if (!this.canAct(u) || u.windup || this.flag(u, 'root')) return;
     const plan = u.plan;
     const t = plan && this.get(plan.targetId);
+    const faced = this.faceThreat(u, t, plan?.intent);
     let dx = 0, dy = 0;
-    if (u.rare && this.tick >= u.fleeAt) {
+    if (this.flag(u, 'fear')) {
+      // frightened: get away from the nearest foe, back turned
+      const foes = this.teamCache[1 - u.team];
+      const near = foes.length ? foes.reduce((a, b) => (this.dist(u, a) <= this.dist(u, b) ? a : b)) : undefined;
+      if (near) { const d = this.dist(u, near) || 1; dx = (u.x - near.x) / d; dy = (u.y - near.y) / d; }
+    } else if (u.rare && this.tick >= u.fleeAt) {
       // a Rare makes a run for the far edge and vanishes if it gets there
       const edge = this.field.w - 0.6;
       if (u.x >= edge - 0.3) { u.alive = false; this.escaped.push(u.id); this.emit('escaped', { unit: u.id }); this.refreshTeams(); return; }
@@ -631,7 +654,7 @@ export class Fight {
     const nav = this.field.nav;
     if (walkableAt(nav, nx + Math.sign(u.vx) * u.base.radius * 0.6, u.y)) u.x = nx;
     if (walkableAt(nav, u.x, ny + Math.sign(u.vy) * u.base.radius * 0.6)) u.y = ny;
-    if (Math.hypot(u.vx, u.vy) > 0.05) { u.fx = u.vx; u.fy = u.vy; }
+    if (!faced && Math.hypot(u.vx, u.vy) > 0.05) { u.fx = u.vx; u.fy = u.vy; }
     // stuck detection: wanting to move but barely moving for a second
     if (this.tick % TICKS_PER_S === 0) {
       const moved = Math.hypot(u.x - u.lastX, u.y - u.lastY);
@@ -652,7 +675,8 @@ export class Fight {
       return;
     }
     const plan = u.plan;
-    if (!plan || !this.canAct(u)) return;
+    // the frightened don't fight back
+    if (!plan || !this.canAct(u) || this.flag(u, 'fear')) return;
     const ab = ABILITIES[plan.ability];
     if ((u.cooldowns[ab.id] ?? 0) > 0) return;
     if (ab.kind === 'ult' && u.energy < 100) { u.plan = undefined; return; }
@@ -711,7 +735,7 @@ export class Fight {
       if (t && !ab.friendly) { u.s.misses++; this.emit('miss', { src: u.id, dst: targetId, ability: ab.id, reason: 'moved' }); }
       return;
     }
-    if (ab.dodgeable && !ab.area && !ab.friendly && !this.hitRoll(u, t, ab)) return;
+    if (ab.dodgeable && !ab.area && !ab.friendly && (!this.hitRoll(u, t, ab) || this.defended(u, t, ab))) return;
     this.applyAbility(u, ab, ab.area ? this.affected(u, ab, u.x, u.y, t) : [t], t);
   }
 
@@ -720,6 +744,37 @@ export class Fight {
     if (this.combat.next() < chance) return true;
     u.s.misses++;
     this.emit('miss', { src: u.id, dst: t.id, ability: ab.id, reason: 'dodge' });
+    return false;
+  }
+
+  /**
+   * Parry and block: only against blows from the front, so facing and flanking matter.
+   * A shield stops melee and missiles; a blade turns aside melee and earns a little energy.
+   */
+  private defended(u: Unit, t: Unit, ab: AbilityDef): boolean {
+    if (!this.canAct(t) || t.windup || this.flag(t, 'fear')) return false;
+    const fl = Math.hypot(t.fx, t.fy) || 1, dl = this.dist(u, t) || 1;
+    const front = ((t.fx / fl) * (u.x - t.x) + (t.fy / fl) * (u.y - t.y)) / dl > 0.35;
+    if (!front) return false;
+    const melee = ab.delivery === 'melee';
+    // huge things hit too hard to turn aside, and only sometimes stop on a shield
+    const huge = u.base.radius >= 0.5;
+    // shields stop blows and (most) missiles; a weapon alone only catches blows
+    const blockable = melee || (ab.delivery === 'projectile' && t.base.blockMissiles > 0);
+    if (blockable && t.base.block > 0 && this.combat.next() < t.base.block * (huge ? 0.35 : 1)) {
+      t.s.blocks = (t.s.blocks ?? 0) + 1;
+      this.emit('block', { src: u.id, dst: t.id, ability: ab.id });
+      return true;
+    }
+    if (melee && !huge && t.base.parry > 0 && this.combat.next() < t.base.parry) {
+      t.s.parries = (t.s.parries ?? 0) + 1;
+      this.gainEnergy(t, 8);
+      // a good parry can knock the weapon clean out of their hands
+      const disarmed = u.base.armed > 0 && t.base.disarm > 0 && !u.statuses.some((x) => x.id === 'disarmed') && this.combat.next() < t.base.disarm;
+      this.emit('parry', { src: u.id, dst: t.id, ability: ab.id, disarm: disarmed });
+      if (disarmed) this.addStatus(u, 'disarmed', GEAR.disarm.dur, t, 1);
+      return true;
+    }
     return false;
   }
 
@@ -733,7 +788,7 @@ export class Fight {
       } else {
         const t = this.get(p.targetId);
         if (t && t.alive && (t.downedLeft <= 0 || ab.friendly) && this.dist(t, { x: p.tx, y: p.ty }) <= 0.6 + t.base.radius) {
-          if (!ab.dodgeable || ab.friendly || this.hitRoll(owner, t, ab)) this.applyAbility(owner, ab, [t], t);
+          if (!ab.dodgeable || ab.friendly || (this.hitRoll(owner, t, ab) && !this.defended(owner, t, ab))) this.applyAbility(owner, ab, [t], t);
         } else if (!ab.friendly) {
           owner.s.misses++;
           this.emit('miss', { src: owner.id, dst: p.targetId, ability: ab.id, reason: 'moved' });
@@ -912,7 +967,7 @@ export class Fight {
     if (t.downedLeft > 0) {
       // Hardcore: hitting a Downed hero shortens their bleed-out.
       t.downedLeft -= 1;
-      this.emit('hit', { src: src?.id, dst: t.id, ability, dmg: 0, type, crit, downed: true });
+      this.emit('hit', { src: src?.id, dst: t.id, ability, dmg: 0, dmgType: type, crit, downed: true });
       if (t.downedLeft <= 0) this.die(t, src, 'finished');
       return;
     }
@@ -926,7 +981,8 @@ export class Fight {
     if (t.statuses.some((s) => STATUSES[s.id].breakOnDamage)) t.statuses = t.statuses.filter((s) => !STATUSES[s.id].breakOnDamage);
     const lostPct = real / t.base.maxHp;
     this.gainEnergy(t, 5 + Math.min(5, Math.floor(lostPct / 0.05)));
-    this.emit('hit', { src: src?.id, dst: t.id, ability, dmg, type, crit });
+    // the damage type travels as dmgType: a field called `type` would overwrite the event's own type
+    this.emit('hit', { src: src?.id, dst: t.id, ability, dmg, dmgType: type, crit });
     if (t.hp <= 0) this.kill(t, src, ability);
   }
 

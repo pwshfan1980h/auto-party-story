@@ -8,12 +8,18 @@ interface Burst { mesh: THREE.InstancedMesh; parts: { p: THREE.Vector3; v: THREE
 interface Proj { mesh: THREE.Mesh; a: THREE.Vector3; b: THREE.Vector3; t: number; dur: number; arc: number }
 interface Ring { group: THREE.Group; fill: THREE.Mesh; t: number; dur: number }
 interface Decal { mesh: THREE.Mesh; t: number; life: number }
+interface Wave { mesh: THREE.Mesh; t: number; dur: number; r: number }
+interface Flash { light: THREE.PointLight; t: number; dur: number; peak: number }
 
 export class Fx {
   private bursts: Burst[] = [];
   private projs: Proj[] = [];
   private rings: Ring[] = [];
   private decals: Decal[] = [];
+  private waves: Wave[] = [];
+  private flashes: Flash[] = [];
+  /** Real lights are costly; a few at once is plenty to light up a blast. */
+  static MAX_FLASHES = 3;
   private live = 0;
   /** Debris voxels in flight are capped so hordes stay cheap (spec 11). */
   static MAX_DEBRIS = 900;
@@ -67,7 +73,37 @@ export class Fx {
     this.decals.push({ mesh, t: 0, life: 6 });
   }
 
+  /** A shockwave: a flat ring racing outwards over the floor and fading. */
+  shockwave(at: THREE.Vector3, r: number, color: number, dur = 0.5) {
+    const mesh = new THREE.Mesh(new THREE.RingGeometry(0.82, 1, 48), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending }));
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.copy(at).setY(0.03);
+    mesh.scale.setScalar(0.05);
+    this.parent.add(mesh);
+    this.waves.push({ mesh, t: 0, dur, r });
+  }
+
+  /** A burst of real light: a spell or explosion lighting up the room for a moment. */
+  flash(at: THREE.Vector3, color: number, peak = 3, dist = 4, dur = 0.35) {
+    if (this.flashes.length >= Fx.MAX_FLASHES) { const old = this.flashes.shift()!; this.parent.remove(old.light); }
+    const light = new THREE.PointLight(color, peak, dist, 1.5);
+    light.position.copy(at);
+    this.parent.add(light);
+    this.flashes.push({ light, t: 0, dur, peak });
+  }
+
   update(dt: number) {
+    for (const w of this.waves) {
+      w.t += dt;
+      const k = Math.min(1, w.t / w.dur);
+      w.mesh.scale.setScalar(Math.max(0.05, w.r * (1 - Math.pow(1 - k, 3))));
+      (w.mesh.material as THREE.MeshBasicMaterial).opacity = 0.85 * (1 - k);
+    }
+    for (const w of this.waves.filter((x) => x.t >= x.dur)) { this.parent.remove(w.mesh); w.mesh.geometry.dispose(); }
+    this.waves = this.waves.filter((x) => x.t < x.dur);
+    for (const f of this.flashes) { f.t += dt; f.light.intensity = f.peak * Math.max(0, 1 - f.t / f.dur); }
+    for (const f of this.flashes.filter((x) => x.t >= x.dur)) this.parent.remove(f.light);
+    this.flashes = this.flashes.filter((x) => x.t < x.dur);
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3();
     for (const b of this.bursts) {
       b.t += dt;
@@ -105,6 +141,8 @@ export class Fx {
     for (const p of this.projs) this.parent.remove(p.mesh);
     for (const r of this.rings) this.parent.remove(r.group);
     for (const d of this.decals) this.parent.remove(d.mesh);
-    this.bursts = []; this.projs = []; this.rings = []; this.decals = []; this.live = 0;
+    for (const w of this.waves) this.parent.remove(w.mesh);
+    for (const f of this.flashes) this.parent.remove(f.light);
+    this.bursts = []; this.projs = []; this.rings = []; this.decals = []; this.waves = []; this.flashes = []; this.live = 0;
   }
 }

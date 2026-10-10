@@ -7,5 +7,6 @@
   "overLevelMult": 0.5,
   "underLevelMult": 1.25,
   "maxLevel": 30,
+  "defense": { "_doc": "Parry and block grow from a class's starting floor: per agility or vigor point, capped.", "parryPerAgility": 0.002, "blockPerVigor": 0.002, "cap": 0.45 },
   "bot": { "_doc": "How the simulated player in the campaign suite picks tiers and orders boss pushes.", "tierSlack": 0, "pushAt": 1 }
 }

@@ -4,7 +4,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { measureBaselines } from './baselines';
-import { ABILITIES, ARCHETYPES, BASELINES, CLASSES, DELVE, ENEMIES, LEADERSHIP, MONSTER_SCALE, PROGRESSION, RACES, RANKS, SPECIES, TIERS } from '../src/sim/data';
+import { ABILITIES, ARCHETYPES, BASELINES, CLASSES, DELVE, GEAR, ENEMIES, LEADERSHIP, MONSTER_SCALE, PROGRESSION, RACES, RANKS, SPECIES, TIERS } from '../src/sim/data';
 import { fightOnce, runStats, TARGETS } from './metrics';
 import { PRESETS } from '../src/sim/presets';
 import type { RoomType } from '../src/sim/types';
@@ -26,6 +26,7 @@ const FILES: Record<string, Record<string, unknown>> = {
   leadership: LEADERSHIP as unknown as Record<string, unknown>,
   progression: PROGRESSION as unknown as Record<string, unknown>,
   delve: DELVE as unknown as Record<string, unknown>,
+  gear: GEAR as unknown as Record<string, unknown>,
   tiers: TIERS as unknown as Record<string, unknown>,
   classes: CLASSES as unknown as Record<string, unknown>,
   races: RACES as unknown as Record<string, unknown>,

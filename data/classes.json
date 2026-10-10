@@ -9,7 +9,7 @@
       "area": 1,
       "control": 1
     },
-    "stats": {
+    "gear": {"weapon": "sword", "shield": "round"}, "stats": {
       "maxHp": 120,
       "power": 14,
       "spell": 2,
@@ -17,7 +17,7 @@
       "move": 1.5,
       "crit": 0.06
     },
-    "growth": {
+    "growth": {"block": 0.004, "parry": 0.002, 
       "maxHp": 9,
       "power": 1.0,
       "spell": 0.1,
@@ -48,7 +48,7 @@
       "control": 1,
       "utility": 2
     },
-    "stats": {
+    "gear": {"weapon": "dagger"}, "stats": {
       "maxHp": 85,
       "power": 13,
       "spell": 2,
@@ -56,7 +56,7 @@
       "move": 2.0,
       "crit": 0.15
     },
-    "growth": {
+    "growth": {"parry": 0.004, 
       "maxHp": 6,
       "power": 1.1,
       "spell": 0.1,
@@ -86,7 +86,7 @@
       "artillery": 1,
       "support": 1
     },
-    "stats": {
+    "gear": {"weapon": "mace", "shield": "buckler"}, "stats": {
       "maxHp": 95,
       "power": 6,
       "spell": 12,
@@ -123,7 +123,7 @@
       "striker": 1,
       "control": 1
     },
-    "stats": {
+    "gear": {"weapon": "staff"}, "stats": {
       "maxHp": 70,
       "power": 3,
       "spell": 16,
@@ -162,7 +162,7 @@
       "control": 1,
       "utility": 1
     },
-    "stats": {
+    "gear": {"weapon": "bow"}, "stats": {
       "maxHp": 80,
       "power": 13,
       "spell": 3,
@@ -201,7 +201,7 @@
       "control": 1,
       "utility": 1
     },
-    "stats": {
+    "gear": {"weapon": "lute"}, "stats": {
       "maxHp": 85,
       "power": 8,
       "spell": 10,
@@ -242,7 +242,7 @@
       "control": 1,
       "support": 1
     },
-    "stats": {
+    "gear": {"weapon": "flask"}, "stats": {
       "maxHp": 85,
       "power": 6,
       "spell": 12,
@@ -282,7 +282,7 @@
       "control": 1,
       "support": 1
     },
-    "stats": {
+    "gear": {"weapon": "staff"}, "stats": {
       "maxHp": 75,
       "power": 3,
       "spell": 14,
@@ -321,7 +321,7 @@
       "support": 1,
       "bruiser": 1
     },
-    "stats": {
+    "gear": {"weapon": "sword", "shield": "kite"}, "stats": {
       "maxHp": 134,
       "power": 13,
       "spell": 2,
@@ -329,7 +329,7 @@
       "move": 1.5,
       "crit": 0.06
     },
-    "growth": {
+    "growth": {"block": 0.005, "parry": 0.002, 
       "maxHp": 10,
       "power": 1.0,
       "spell": 0.1,
@@ -360,7 +360,7 @@
       "tank": 1,
       "striker": 1
     },
-    "stats": {
+    "gear": {"weapon": "axe"}, "stats": {
       "maxHp": 112,
       "power": 16,
       "spell": 2,
@@ -368,7 +368,7 @@
       "move": 1.6,
       "crit": 0.07
     },
-    "growth": {
+    "growth": {"parry": 0.003, 
       "maxHp": 8,
       "power": 1.15,
       "spell": 0.1,
@@ -398,7 +398,7 @@
       "artillery": 3,
       "utility": 1
     },
-    "stats": {
+    "gear": {"weapon": "bow"}, "stats": {
       "maxHp": 76,
       "power": 15,
       "spell": 3,
@@ -436,7 +436,7 @@
       "control": 1,
       "utility": 1
     },
-    "stats": {
+    "gear": {"weapon": "swordbreaker"}, "stats": {
       "maxHp": 80,
       "power": 15,
       "spell": 2,
@@ -444,7 +444,7 @@
       "move": 2.1,
       "crit": 0.17
     },
-    "growth": {
+    "growth": {"parry": 0.004, 
       "maxHp": 6,
       "power": 1.2,
       "spell": 0.1,

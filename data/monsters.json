@@ -5,7 +5,7 @@
     "_doc": "Global tuning knobs (spec 09 auto-tuner). Multiply every monster."
   },
   "species": {
-    "rat": {
+    "rat": { "natural": true,
       "family": "vermin",
       "tags": [
         "beast"
@@ -20,7 +20,7 @@
         "move": 1.9
       }
     },
-    "bat": {
+    "bat": { "natural": true,
       "family": "bats",
       "tags": [
         "beast"
@@ -56,7 +56,7 @@
         "holy": 1.5
       }
     },
-    "zombie": {
+    "zombie": { "natural": true,
       "family": "zombies",
       "tags": [
         "undead"
@@ -76,7 +76,7 @@
         "poison": 0.5
       }
     },
-    "ghost": {
+    "ghost": { "natural": true,
       "family": "spirits",
       "tags": [
         "undead"
@@ -128,7 +128,7 @@
         "move": 1.8
       }
     },
-    "spider": {
+    "spider": { "natural": true,
       "family": "spiders",
       "tags": [
         "beast"
@@ -161,7 +161,7 @@
         "move": 1.8
       }
     },
-    "slime": {
+    "slime": { "natural": true,
       "family": "slimes",
       "tags": [
         "ooze"
@@ -183,7 +183,7 @@
     }
   },
   "archetypes": {
-    "grunt": {
+    "grunt": { "gear": {"weapon": "sword"}, 
       "mult": {
         "maxHp": 1.0,
         "power": 1.0
@@ -191,7 +191,7 @@
       "basic": "m_slash",
       "rules": "m_grunt"
     },
-    "brute": {
+    "brute": { "gear": {"weapon": "club"},
       "mult": {
         "maxHp": 1.6,
         "power": 1.3,
@@ -204,7 +204,7 @@
       "rules": "m_brute",
       "radius": 0.38
     },
-    "skirmisher": {
+    "skirmisher": { "gear": {"weapon": "dagger"},
       "mult": {
         "maxHp": 0.8,
         "power": 1.0,
@@ -216,7 +216,7 @@
       ],
       "rules": "m_skirmisher"
     },
-    "shooter": {
+    "shooter": { "gear": {"weapon": "bow"},
       "mult": {
         "maxHp": 0.8,
         "power": 0.9
@@ -224,7 +224,7 @@
       "basic": "m_arrow",
       "rules": "m_shooter"
     },
-    "caster": {
+    "caster": { "gear": {"weapon": "staff"},
       "mult": {
         "maxHp": 0.75,
         "spell": 1.15
@@ -235,7 +235,7 @@
       ],
       "rules": "m_caster"
     },
-    "mender": {
+    "mender": { "gear": {"weapon": "staff"},
       "mult": {
         "maxHp": 0.9,
         "spell": 1.0
@@ -246,7 +246,7 @@
       ],
       "rules": "m_mender"
     },
-    "summoner": {
+    "summoner": { "gear": {"weapon": "staff"},
       "mult": {
         "maxHp": 0.8,
         "spell": 1.0
@@ -257,7 +257,7 @@
       ],
       "rules": "m_summoner"
     },
-    "guardian": {
+    "guardian": { "gear": {"weapon": "mace", "shield": "tower"},
       "mult": {
         "maxHp": 1.5,
         "power": 0.9
@@ -272,7 +272,7 @@
       "rules": "m_guardian",
       "radius": 0.35
     },
-    "swarm": {
+    "swarm": { "gear": {"weapon": "natural"},
       "mult": {
         "maxHp": 0.5,
         "power": 0.6,
@@ -282,7 +282,7 @@
       "rules": "m_grunt",
       "radius": 0.22
     },
-    "bomber": {
+    "bomber": { "gear": {"weapon": "natural"},
       "mult": {
         "maxHp": 0.5,
         "power": 1.0,
@@ -291,7 +291,7 @@
       "basic": "m_explode",
       "rules": "m_grunt"
     },
-    "wailer": {
+    "wailer": { "gear": {"weapon": "natural"},
       "mult": {
         "maxHp": 0.9,
         "spell": 1.0

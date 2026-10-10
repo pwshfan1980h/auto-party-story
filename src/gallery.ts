@@ -64,7 +64,7 @@ function resize(extent = frame) {
   cam.updateProjectionMatrix();
 }
 
-const anims: Anim[] = ['idle', 'walk', 'crouch', 'attack', 'cast', 'shoot', 'hurt', 'downed', 'celebrate'];
+const anims: Anim[] = ['idle', 'ready', 'walk', 'attack', 'cast', 'shoot', 'block', 'parry', 'dodge', 'stagger', 'hurt', 'cower', 'downed', 'celebrate'];
 const bar = document.getElementById('anims')!;
 for (const a of anims) {
   const b = document.createElement('button');

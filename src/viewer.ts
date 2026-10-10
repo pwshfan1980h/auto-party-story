@@ -6,11 +6,14 @@ import { stream } from './sim/rng';
 import type { RoomType } from './sim/types';
 import { BattleReplay, type BattleOptions } from './render/battleView';
 import { BattleScene } from './render/scene';
+import { sfx } from './audio/sfx';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const scene = new BattleScene($('c'));
 const overlay = $('ov');
-const opts: BattleOptions = { camera: 'subtle', clarity: false, torchFuel: 7 };
+const opts: BattleOptions = { camera: 'subtle', clarity: false, torchFuel: 7, audio: sfx };
+// browsers start audio only after a gesture
+document.addEventListener('pointerdown', () => sfx.unlock(), { once: false });
 let speed = 0.75;
 let seed = Number(new URLSearchParams(location.search).get('seed') ?? 4021);
 let replay: BattleReplay | null = null;

@@ -18,6 +18,16 @@ export interface Stats {
   crit: number;
   critMult: number;
   evasion: number;
+  /** Chance to turn aside a melee blow from the front. */
+  parry: number;
+  /** Chance to stop a blow from the front: mostly from a shield, a little from a weapon. */
+  block: number;
+  /** 1 when the shield also stops missiles. */
+  blockMissiles: number;
+  /** Chance that a parry knocks the attacker's weapon away. */
+  disarm: number;
+  /** 1 when fighting with a held weapon (one that can be knocked away). */
+  armed: number;
   accuracy: number;
   energyGain: number;
   healPower: number;
@@ -92,7 +102,7 @@ export interface StatusDef {
   /** Damage or heal applied every 0.5 s per stack. */
   tick?: { dmgType?: DamageType; dmg?: number; heal?: number; ofCasterSpell?: number };
   mods?: Partial<Record<'power' | 'spell' | 'armor' | 'move' | 'atkSpeed' | 'healTaken' | 'damageDealt' | 'damageTaken' | 'evasion', number>>;
-  flags?: ('stun' | 'root' | 'sleep' | 'downed' | 'taunted')[];
+  flags?: ('stun' | 'root' | 'sleep' | 'downed' | 'taunted' | 'fear')[];
   /** Removed when the unit takes damage (sleep). */
   breakOnDamage?: boolean;
 }

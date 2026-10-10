@@ -16,26 +16,31 @@
   ],
   "heal": [
     { "if": "allyDowned", "use": "revive", "on": "downedAlly", "move": "approach", "text": "Reviving {t}" },
+    { "if": "enemiesInRange:1:0.3", "use": "skill", "skill": "fend_off", "on": "nearest", "move": "kite:3", "text": "Fending off {t}" },
     { "if": "energyFull&alliesBelow:0.6:2", "use": "ult", "on": "self", "move": "regroup", "text": "Calling Sanctuary" },
     { "if": "allyHpBelow:0.55", "use": "skill", "on": "allyLowestHpPct", "move": "kite:3", "text": "Mending {t}" },
     { "if": "always", "use": "basic", "on": "nearest", "move": "kite:3", "text": "Smiting {t}, keeping back" }
   ],
   "artillery": [
+    { "if": "enemiesInRange:1:0.3", "use": "skill", "skill": "fend_off", "on": "nearest", "move": "kite:3", "text": "Fending off {t}" },
     { "if": "energyFull", "use": "ult", "on": "mostClustered", "move": "kite:4", "text": "Ultimate on the pack around {t}" },
     { "if": "always", "use": "skill", "on": "casterFirst", "move": "kite:4", "text": "Picking off {t}" },
     { "if": "always", "use": "basic", "on": "lowestHp", "move": "kite:4", "text": "Kiting, shooting {t}" }
   ],
   "area": [
+    { "if": "enemiesInRange:1:0.3", "use": "skill", "skill": "fend_off", "on": "nearest", "move": "kite:3", "text": "Fending off {t}" },
     { "if": "energyFull&clusterAt:3:1.6", "use": "ult", "on": "mostClustered", "move": "kite:4.5", "text": "Ultimate on the pack around {t}" },
     { "if": "clusterAt:2:1.2", "use": "skill", "on": "mostClustered", "move": "kite:4.5", "text": "Burning the cluster at {t}" },
     { "if": "always", "use": "basic", "on": "nearest", "move": "kite:4.5", "text": "Kiting, casting at {t}" }
   ],
   "support": [
+    { "if": "enemiesInRange:1:0.3", "use": "skill", "skill": "fend_off", "on": "nearest", "move": "kite:3", "text": "Fending off {t}" },
     { "if": "energyFull", "use": "ult", "on": "self", "move": "regroup", "text": "Ultimate for the party" },
     { "if": "alliesInRange:2:3", "use": "skill", "on": "self", "move": "regroup", "text": "Inspiring nearby allies" },
     { "if": "always", "use": "basic", "on": "nearest", "move": "regroup", "text": "Staying with the party, playing at {t}" }
   ],
   "summon": [
+    { "if": "enemiesInRange:1:0.3", "use": "skill", "skill": "fend_off", "on": "nearest", "move": "kite:3", "text": "Fending off {t}" },
     { "if": "energyFull", "use": "ult", "on": "self", "move": "kite:4", "text": "Ultimate: raising a wall of bones" },
     { "if": "summonsBelow:2", "use": "skill", "on": "self", "move": "kite:4", "text": "Raising bones" },
     { "if": "always", "use": "basic", "on": "nearest", "move": "kite:4", "text": "Kiting, casting at {t}" }

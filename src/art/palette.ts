@@ -1,4 +1,5 @@
-// The unit palette: warm, saturated pixel-art colours with a dark ink for outlines and eyes.
+// The unit palette, with a dark ink for outlines and eyes. Meshes pass every colour through grade(),
+// which darkens and desaturates for the game's grim look; magic glows are left to burn bright.
 // Inspired by classic 16-bit fantasy sprites; all values are original.
 export const P = {
   ink: 0x1d1622,
@@ -38,3 +39,15 @@ export const P = {
   glowGreen: 0x8ef06a, glowCyan: 0x7ae8ff, glowRed: 0xff5a3a, glowPurple: 0xc77aff, flame: 0xffa23a,
   glass: 0xa6e0d0,
 } as const;
+
+/** The look of the world: darker and less saturated, except for things that glow. */
+export const GRADE = { value: 0.78, saturation: 0.72 };
+const GLOWS = new Set<number>([P.glowGreen, P.glowCyan, P.glowRed, P.glowPurple, P.flame, P.ghostGlow, P.eyeWhite]);
+
+export function grade(c: number): number {
+  if (GLOWS.has(c)) return c;
+  const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255;
+  const l = 0.3 * r + 0.59 * g + 0.11 * b;
+  const f = (v: number) => Math.max(0, Math.min(255, Math.round((l + (v - l) * GRADE.saturation) * GRADE.value)));
+  return (f(r) << 16) | (f(g) << 8) | f(b);
+}

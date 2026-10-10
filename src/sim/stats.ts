@@ -1,12 +1,12 @@
 // Derived stats and the damage maths (spec 01).
-import { ARCHETYPES, CLASSES, ENEMIES, MONSTER_SCALE, RACES, RANKS, SPECIES } from './data';
+import { ARCHETYPES, CLASSES, ENEMIES, GEAR, MONSTER_SCALE, PROGRESSION, RACES, RANKS, SPECIES } from './data';
 import type { Rng } from './rng';
 import { PHYSICAL, type Attrs, type DamageType, type Stats } from './types';
 
 export function baseStats(): Stats {
   return {
     maxHp: 1, power: 0, spell: 0, armor: 0, resist: {}, atkSpeed: 1, move: 1.5, crit: 0.05, critMult: 1.75,
-    evasion: 0.03, accuracy: 1, energyGain: 1, healPower: 1, healTaken: 1, radius: 0.3,
+    evasion: 0.03, parry: 0, block: 0, blockMissiles: 0, disarm: 0, armed: 0, accuracy: 1, energyGain: 1, healPower: 1, healTaken: 1, radius: 0.3,
   };
 }
 
@@ -26,6 +26,17 @@ export function autoAttrs(classId: string, level: number): Attrs {
 /** Attribute points past 40 count half. */
 const soft = (n: number) => (n <= 40 ? n : 40 + (n - 40) / 2);
 
+/** What a weapon and shield let a unit do: parry, block, stop missiles, disarm. */
+function applyGear(s: Stats, weaponId?: string, shieldId?: string) {
+  const w = weaponId ? GEAR.weapons[weaponId] : undefined, sh = shieldId ? GEAR.shields[shieldId] : undefined;
+  s.parry = w?.parry ?? 0;
+  s.block = (w?.block ?? 0) + (sh?.block ?? 0);
+  s.blockMissiles = sh?.missiles ? 1 : 0;
+  s.disarm = w?.disarm ?? 0;
+  s.armed = w && !w.natural ? 1 : 0;
+  s.move += sh?.move ?? 0;
+}
+
 export function heroStats(classId: string, raceId: string, level: number, attrs: Attrs, gearScore: number): Stats {
   const c = CLASSES[classId];
   const r = RACES[raceId];
@@ -37,6 +48,10 @@ export function heroStats(classId: string, raceId: string, level: number, attrs:
   s.armor = (c.stats.armor ?? 0) + (c.growth.armor ?? 0) * lv;
   s.move = c.stats.move ?? 1.5;
   s.crit = c.stats.crit ?? 0.05;
+  // gear sets the floor for parry and block; skill grows it with levels, and attributes sharpen it below
+  applyGear(s, c.gear?.weapon, c.gear?.shield);
+  if (s.parry > 0) s.parry += (c.growth.parry ?? 0) * lv;
+  if (s.block > 0) s.block += (c.growth.block ?? 0) * lv;
 
   const m = soft(attrs.might), a = soft(attrs.agility), ar = soft(attrs.arcana), v = soft(attrs.vigor);
   s.maxHp += m * 3 + v * 8;
@@ -44,6 +59,10 @@ export function heroStats(classId: string, raceId: string, level: number, attrs:
   s.atkSpeed += a * 0.01;
   s.crit += a * 0.005;
   s.evasion += a * 0.004;
+  if (s.parry > 0) s.parry += a * PROGRESSION.defense.parryPerAgility;
+  if (s.block > 0) s.block += v * PROGRESSION.defense.blockPerVigor;
+  s.parry = Math.min(PROGRESSION.defense.cap, s.parry);
+  s.block = Math.min(PROGRESSION.defense.cap, s.block);
   s.move += a * 0.01;
   s.energyGain += ar * 0.015;
   s.healPower += ar * 0.02;
@@ -75,6 +94,7 @@ export function monsterStats(enemyId: string, level: number, rankOverride?: stri
   s.armor = (sp.stats.armor ?? 0) + (ar.add?.armor ?? 0);
   s.move = (sp.stats.move ?? 1.4) * (ar.mult.move ?? 1);
   s.evasion = sp.stats.evasion ?? 0.03;
+  applyGear(s, sp.natural ? 'natural' : ar.gear?.weapon, sp.natural ? undefined : ar.gear?.shield);
   s.radius = (ar.radius ?? 0.3) * (rank.radius ?? 1);
   return { stats: s, tags: sp.tags, typeMods: sp.typeMods ?? {} };
 }

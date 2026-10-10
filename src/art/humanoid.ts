@@ -114,6 +114,8 @@ export function buildBody(look: Look): Rig {
   // torso
   const torso = new PartBuilder('torso', [0, legH, 0]);
   torso.rbox(-hw, legH, z0, hw, torsoTop, z1, skin);
+  // taper to the waist, so bodies read as shoulders and hips rather than a slab
+  if (hw >= 3) for (let y = legH + 1; y <= legH + Math.floor(torsoH * 0.45); y++) for (let z = z0; z <= z1; z++) { torso.clear(-hw, y, z); torso.clear(hw, y, z); }
 
   // arms (pivot at the shoulder)
   const armR = new PartBuilder('armR', [armX + 0.5, shoulderY, 0], 'torso');
@@ -142,18 +144,19 @@ export function buildBody(look: Look): Rig {
     const fz = hz1 * RES + RES - 1; // the face's front fine layer
     for (const sx of [-ex, ex]) {
       const fx = sx * RES;
-      head.fineBox(fx - 1, eyeY * RES, fz, fx + 1, eyeY * RES + 3, fz, eye);
-      if (!spec.eyes) head.fineSet(fx + (sx < 0 ? 1 : -1), eyeY * RES + 3, fz, P.eyeWhite).fineSet(fx + (sx < 0 ? 1 : -1), eyeY * RES + 2, fz, P.eyeWhite);
+      const ix = fx + (sx < 0 ? 0 : -1);
+      head.fineBox(ix, eyeY * RES, fz, ix + 1, eyeY * RES + 2, fz, eye);
+      if (!spec.eyes) head.fineSet(sx < 0 ? ix + 1 : ix, eyeY * RES + 2, fz, P.eyeWhite);
       // brow
       const brow = look.hair ?? shade(skin, 0.6);
-      head.fineBox(fx - 1 - (sx < 0 ? 1 : 0), eyeY * RES + 5, fz, fx + 1 + (sx > 0 ? 1 : 0), eyeY * RES + 5, fz, brow);
+      head.fineBox(ix - (sx < 0 ? 1 : 0), eyeY * RES + 4, fz, ix + 1 + (sx > 0 ? 1 : 0), eyeY * RES + 4, fz, brow);
     }
     if (!feats.has('snout') && !feats.has('visor')) {
       head.set(-ex - 1, eyeY - 1, hz1, shade(skin, 0.93)).set(ex + 1, eyeY - 1, hz1, shade(skin, 0.93));
       const fz = hz1 * RES + RES - 1;
       head.fineBox(-2, headY * RES + 3, fz, 1, headY * RES + 3, fz, shade(skin, 0.62));
     }
-    if (look.sex === 'f' && !spec.eyes) for (const sx of [-ex, ex]) head.fineSet(sx * RES + (sx < 0 ? -2 : 2), eyeY * RES + 3, hz1 * RES + RES - 1, P.ink);
+    if (look.sex === 'f' && !spec.eyes) for (const sx of [-ex, ex]) head.fineSet(sx * RES + (sx < 0 ? -2 : 1), eyeY * RES + 3, hz1 * RES + RES - 1, P.ink);
   }
   if (feats.has('bigNose')) head.box(0, eyeY - 2, hz1 + 1, 0, eyeY - 1, hz1 + 1, shade(skin, 0.9)).set(0, eyeY - 2, hz1 + 2, shade(skin, 0.85));
   else if (!feats.has('snout') && !feats.has('boneFace') && !feats.has('visor')) head.set(0, eyeY - 1, hz1 + 1, shade(skin, 0.9));
@@ -283,20 +286,20 @@ function hood(rig: Rig, c: Color, deep = false) {
   const { frame: f, head } = rig;
   const { headY, headTop, hx, hz0, hz1 } = f;
   const cy = (headY + headTop) / 2 + 0.6, cz = (hz0 + hz1) / 2 - 0.4;
-  head.rounded(0, cy, cz, hx + 1.9, (headTop - headY) / 2 + 2, (hz1 - hz0) / 2 + 1.8, c, 0.1, (x, y, z) => {
+  head.rounded(0, cy, cz, hx + 1.2, (headTop - headY) / 2 + 1.3, (hz1 - hz0) / 2 + 1.1, c, 0.1, (x, y, z) => {
     const inside = Math.abs(x) <= hx + 0.5 && y >= headY - 0.5 && y <= headTop + 0.5 && z >= hz0 - 0.5 && z <= hz1 + 0.5;
     const face = z >= hz1 - 1.5 && Math.abs(x) <= hx - (deep ? 1.5 : 0.5) && y >= headY - 0.5 && y <= headTop - (deep ? 2.5 : 1.5);
     return !inside && !face;
   });
   // shadow under the brim, and a small peak at the back
   head.box(-hx + 1, headTop - (deep ? 2 : 1), hz1 + 1, hx - 1, headTop - (deep ? 2 : 1), hz1 + 1, shade(c, 0.72));
-  head.ellipsoid(0, headTop + 2.5, hz0 - 1.2, 1.4, 1.6, 1.6, c, 0.1);
+  head.ellipsoid(0, headTop + 1.6, hz0 - 0.6, 1, 1.2, 1.2, c, 0.1);
 }
 function helmet(rig: Rig, c: Color, nasal = true) {
   const { frame: f, head } = rig;
   const { headTop, hx, hz0, hz1 } = f;
   const eyeLine = f.headY + Math.floor((headTop - f.headY) * 0.6);
-  head.ellipsoid(0, headTop - 1, (hz0 + hz1) / 2, hx + 1.4, 3.2, (hz1 - hz0) / 2 + 1.4, c, 0.06);
+  head.ellipsoid(0, headTop - 1, (hz0 + hz1) / 2, hx + 0.9, 2.6, (hz1 - hz0) / 2 + 0.9, c, 0.06);
   head.box(-hx - 1, eyeLine + 1, hz0 - 1, hx + 1, eyeLine + 1, hz1 + 1, shade(c, 0.8));
   head.box(-hx - 1, f.headY + 1, hz0 - 1, -hx - 1, eyeLine, hz0 + 2, c).box(hx + 1, f.headY + 1, hz0 - 1, hx + 1, eyeLine, hz0 + 2, c);
   if (nasal) head.box(0, eyeLine - 2, hz1 + 1, 0, eyeLine + 1, hz1 + 1, shade(c, 0.9));

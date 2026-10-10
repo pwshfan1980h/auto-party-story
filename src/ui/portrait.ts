@@ -15,8 +15,8 @@ function setup() {
   renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(1);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  scene.add(new THREE.AmbientLight(0x8a88b0, 1.4));
-  const key = new THREE.DirectionalLight(0xffc98a, 2.2);
+  scene.add(new THREE.AmbientLight(0x9a98c0, 2.2));
+  const key = new THREE.DirectionalLight(0xffc98a, 3.4);
   key.position.set(3, 5, 4);
   scene.add(key);
 }

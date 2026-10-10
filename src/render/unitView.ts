@@ -6,7 +6,7 @@ import { meshVoxels } from './voxmesh';
 /** One fine voxel in tiles: a design unit is 1/32 tile, stored at RES× resolution. */
 export const VOXEL = 1 / (32 * RES);
 
-export type Anim = 'idle' | 'walk' | 'attack' | 'cast' | 'shoot' | 'hurt' | 'crouch' | 'downed' | 'celebrate';
+export type Anim = 'idle' | 'ready' | 'walk' | 'attack' | 'cast' | 'shoot' | 'hurt' | 'crouch' | 'cower' | 'block' | 'parry' | 'dodge' | 'stagger' | 'downed' | 'celebrate';
 
 export const unitMaterial = new THREE.MeshLambertMaterial({ vertexColors: true });
 
@@ -116,6 +116,57 @@ export class UnitView {
         this.rot('armR', swing(2.2) * 0.04, 0, 0.04);
         this.rot('armL', -swing(2.2) * 0.04, 0, -0.04);
         this.rot('head', 0, swing(0.7) * 0.12, 0);
+        break;
+      case 'ready':
+        // a fighting stance between actions: knees bent, weapon up, eyes on the foe
+        this.body.position.y = (-0.6 + breathe * 0.3) * R;
+        this.rot('legR', -0.2); this.rot('legL', 0.2);
+        this.rot('torso', 0.08);
+        this.rot('armR', -0.7 + swing(2.2) * 0.05, 0, 0.12);
+        this.rot('armL', -0.45, 0, -0.1);
+        break;
+      case 'block': {
+        // brace: shield arm thrown forward, body leaning into it, pushed back by the blow
+        const k = s(Math.min(1, p * 2.2) * Math.PI / 2) * (1 - Math.max(0, p - 0.6) / 0.4);
+        this.rot('armL', -1.6 * k, 0, 0.35 * k);
+        this.rot('armR', -0.5, 0, 0.15);
+        this.rot('torso', 0.22 * k);
+        this.rot('legR', -0.35 * k); this.rot('legL', 0.35 * k);
+        this.body.position.set(0, -0.9 * k * R, -1.4 * s(p * Math.PI) * R);
+        break;
+      }
+      case 'parry': {
+        // the blade sweeps across and turns the blow aside
+        const k = s(p * Math.PI);
+        this.rot('armR', -1.7 + p * 0.6, 0, 0.9 - p * 1.6);
+        this.rot('torso', 0.05, 0.45 - p * 0.9, 0);
+        this.rot('legR', -0.25 * k); this.rot('legL', 0.25 * k);
+        this.body.position.y = (-0.6 * k) * R;
+        break;
+      }
+      case 'dodge': {
+        const k = s(p * Math.PI);
+        this.body.position.set(2.4 * k * R, -0.8 * k * R, -0.6 * k * R);
+        this.body.rotation.z = -0.28 * k;
+        this.rot('armR', -0.4, 0, 0.6 * k); this.rot('armL', -0.2, 0, -0.5 * k);
+        break;
+      }
+      case 'stagger': {
+        // knocked back off a shield or a parry: arms thrown wide, a step backwards
+        const k = s(p * Math.PI);
+        this.rot('torso', -0.4 * k);
+        this.rot('head', -0.25 * k);
+        this.rot('armR', 0.3 * k, 0, 0.9 * k); this.rot('armL', 0.3 * k, 0, -0.9 * k);
+        this.body.position.z = -2.2 * k * R;
+        break;
+      }
+      case 'cower':
+        // only the frightened: crouched low, arms over the head, face turned away
+        this.body.position.y = (-2.2 + Math.abs(swing(14)) * 0.25) * R;
+        this.rot('legR', -0.7); this.rot('legL', -0.6);
+        this.rot('torso', 0.45);
+        this.rot('head', 0.35, 0.5, 0);
+        this.rot('armR', -2.5, 0, 0.5); this.rot('armL', -2.4, 0, -0.5);
         break;
       case 'walk': {
         const w = swing(9);
