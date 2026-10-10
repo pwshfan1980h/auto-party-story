@@ -18,7 +18,8 @@ export function renderLedger(root: HTMLElement, out: DelveOutcome, onBack: () =>
   clear(root).append(
     el('main', { class: 'ledger' },
       el('header', {}, el('h1', { class: r.outcome }, title), el('p', {}, line), note ? el('p', { class: 'warn' }, note) : null,
-        out.unlockedTier ? el('p', { class: 'gain big' }, `Tier ${out.unlockedTier} is open.`) : null),
+        out.unlockedTier ? el('p', { class: 'gain big' }, `Tier ${out.unlockedTier} is open.`) : null,
+        out.volunteers ? el('p', { class: 'gain' }, `Word reaches the Inn. ${out.volunteers.join(', ')} step${out.volunteers.length > 1 ? '' : 's'} forward to carry the torch, asking nothing.`) : null),
       el('section', { class: 'panel' },
         el('h2', {}, 'The party'),
         el('ul', {}, ...Object.entries(r.heroes).map(([id, h]) => el('li', { class: died.has(id) ? 'warn' : '' },

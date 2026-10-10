@@ -2,7 +2,7 @@
 import { CLASSES, RACES, TIERS } from '../sim/data';
 import { leaderProfile, type Doctrine } from '../sim/leader';
 import { xpToNext, type RosterHero } from '../sim/roster';
-import { hire, partySizeFor, planProblem, type DelvePlan } from '../game/expedition';
+import { hire, partySizeFor, planProblem, rest, type DelvePlan } from '../game/expedition';
 import { build, CAMP, equip, hireCost, TIER_IDS, type GameState } from '../game/state';
 import { ITEMS } from '../sim/data';
 import { canEquip, SLOTS } from '../sim/items';
@@ -87,7 +87,8 @@ export class Town {
               ` Start at the floor ${way} waystone`) : null,
             el('p', {}, 'Leader: ', el('strong', {}, this.hero(this.plan.leaderId)?.hero.name ?? 'none')),
             el('button', { class: 'go', type: 'button', disabled: !!problem, onclick: () => this.on.onDelve({ ...this.plan, partyIds: [...this.plan.partyIds] }) }, 'Delve'),
-            problem ? el('p', { class: 'warn' }, problem) : null),
+            problem ? el('p', { class: 'warn' }, problem) : null,
+          s.roster.length && s.roster.every((h) => h.benched > 0) ? el('button', { type: 'button', onclick: () => { rest(s); this.autoPick(); this.render(); } }, 'Rest a while (everyone recovers a little)') : null),
           el('section', { class: 'panel board', 'aria-label': 'Hire board' },
             el('h2', {}, 'Hire board'),
             el('div', { class: 'cards' }, ...s.hireBoard.map((h) => this.hireCard(h)))))),
