@@ -10,5 +10,6 @@
     "event": [1, 8]
   },
   "council": { "_doc": "When the Leader's call goes to the Council with a warning.", "bigRoomBelowHp": 0.75, "fuelSpare": 3 },
+  "overtime": { "_doc": "Fights must end: from `start` seconds the dark closes in and all damage rises by `per10s` for every 10 s after.", "start": 90, "per10s": 0.5 },
   "events": { "_doc": "How heavily a Leader weighs an event choice's risk: (riskWeight − party HP − push bias).", "riskWeight": 2.6 }
 }

@@ -1,4 +1,4 @@
-// npm run sim -- <suite> [--seeds N] [--tier I,II,III] [--out dir]
+// npm run sim -- <suite> [--seeds N] [--tier I,II,III] [--out dir]   suites: smoke, determinism, fights, runs, perf, leaders, policies, campaign, robust, all
 // Headless balance tool (spec 09). Writes report.md and report.json under reports/.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -11,6 +11,7 @@ import { runRun, type RunPolicy, type RunResult } from '../src/sim/run';
 import { runCampaign } from '../src/sim/campaign';
 import type { RoomType } from '../src/sim/types';
 import { fightOnce, runStats, TARGETS } from './metrics';
+import { robustSweep } from './robust';
 
 const args = process.argv.slice(2);
 const suite = args.find((a) => !a.startsWith('--')) ?? 'smoke';
@@ -53,8 +54,9 @@ function smoke(): boolean {
   for (const tier of TIER_LIST) for (let s = 0; s < Math.max(5, SEEDS / 4); s++) { runRun({ seed: s, tier, party: party(PRESETS.starter, tier), leaderId: party(PRESETS.starter, tier)[0].id }); runs++; }
   md(`Runs: ${runs}`);
   const det = determinism(10);
+  const rob = robust(5);
   if (timeouts) flags.push(`${timeouts} fights hit the 180 s limit`);
-  return errors.length === 0 && det;
+  return errors.length === 0 && det && rob;
 }
 
 function determinism(n = SEEDS): boolean {
@@ -295,6 +297,27 @@ function perf() {
   if (horde > 40) flags.push(`horde fight ${horde.toFixed(1)} ms > 40 ms`);
 }
 
+/** Random parties from every class and race against every tier and room: nothing may crash, stall or stack. */
+function robust(n = SEEDS): boolean {
+  md('# Robustness');
+  const r = robustSweep(n, TIER_LIST);
+  const per100 = (v: number) => ((v / Math.max(1, r.fightSeconds)) * 100).toFixed(2);
+  table(['Fights', 'Crashes', 'Timeouts', 'Bad positions', 'Idle s', 'Overlap s', 'Stuck unit-s per 100 fight-s'],
+    [[r.fights, r.crashes, r.timeouts, r.badPos, r.idleSeconds.toFixed(1), r.overlapSeconds.toFixed(1), per100(r.stuckSeconds)]]);
+  const top = (o: Record<string, number>) => Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([k, v]) => `${k} ${v.toFixed(1)}`).join(', ') || 'none';
+  md(`Idle heroes by class: ${top(r.idleByClass)}`); md();
+  md(`Idle enemies: ${top(r.idleByEnemy)}`); md();
+  md(`Stuck (2 s+) by kind and intent: ${top(r.stuckBy)}`); md();
+  if (r.problems.length) { md('## Cases (seed to replay)'); table(['Kind', 'Tier', 'Room', 'Seed', 'Detail'], r.problems.map((p) => [p.kind, p.tier, p.room, p.seed, p.detail])); }
+  json.robust = { ...r, problems: r.problems.length };
+  if (r.crashes) flags.push(`${r.crashes} fights crashed`);
+  if (r.timeouts) flags.push(`${r.timeouts} random-party fights timed out`);
+  if (r.badPos) flags.push(`${r.badPos} units off the walkable field`);
+  if (r.idleSeconds > r.fights * 0.05) flags.push(`idle ${r.idleSeconds.toFixed(1)} s over ${r.fights} fights`);
+  if (r.overlapSeconds > r.fights * 0.05) flags.push(`units stacked ${r.overlapSeconds.toFixed(1)} s over ${r.fights} fights`);
+  return r.crashes === 0 && r.timeouts === 0 && r.badPos === 0;
+}
+
 // ---------------- main ----------------
 const t0 = performance.now();
 let ok = true;
@@ -306,7 +329,8 @@ else if (suite === 'perf') perf();
 else if (suite === 'leaders') leaders();
 else if (suite === 'policies') policies();
 else if (suite === 'campaign') campaign();
-else if (suite === 'all') { ok = smoke(); fights(); runs(); leaders(); policies(); campaign(); perf(); }
+else if (suite === 'robust') ok = robust();
+else if (suite === 'all') { ok = smoke() && robust(); fights(); runs(); leaders(); policies(); campaign(); perf(); }
 else { console.error(`unknown suite ${suite}`); process.exit(2); }
 
 md('## Flags (outside targets)');

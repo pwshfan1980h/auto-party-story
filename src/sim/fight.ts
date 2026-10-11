@@ -1,6 +1,6 @@
 // The real-time fight: a fixed 20 Hz tick loop with no rendering (spec 02).
 // Phases per tick: timers → projectiles/telegraphs → decisions → movement → actions → deaths/end.
-import { ABILITIES, ARCHETYPES, CLASSES, ENEMIES, GEAR, HAZARDS, ORDERS_DATA, RULES, SPECIES, STATUSES, TIERS } from './data';
+import { ABILITIES, ARCHETYPES, CLASSES, DELVE, ENEMIES, GEAR, HAZARDS, ORDERS_DATA, RULES, SPECIES, STATUSES, TIERS } from './data';
 import { Air } from './air';
 import { synergies, trait } from './racials';
 import { flowDir, flowField, generateField, lineOfSight, SpatialHash, walkableAt, type Field } from './field';
@@ -11,6 +11,12 @@ import { PHYSICAL } from './types';
 
 export const TICK = 0.05;
 const TICKS_PER_S = 20;
+/** After this long without starting an action, a unit drops its positioning and goes for its target. */
+const STALL_TICKS = 2.5 * TICKS_PER_S;
+/** A kiter with a threat this far beyond its kite distance holds ground instead of closing in. */
+const KITE_BAND = 0.6;
+/** Directions a kiter weighs when escaping. */
+const ESCAPE_DIRS = Array.from({ length: 16 }, (_, i) => [Math.cos((i / 16) * Math.PI * 2), Math.sin((i / 16) * Math.PI * 2)] as const);
 
 // ---------------- setup and result types ----------------
 
@@ -175,6 +181,8 @@ export interface Unit {
   summonerId?: string;
   summonLeft: number;
   stuckT: number;
+  /** Tick this unit last started an action (for the stall breaker). */
+  lastActTick: number;
   lastX: number;
   lastY: number;
   rare: boolean;
@@ -222,6 +230,7 @@ export class Fight {
   private readonly aliveBuf: Unit[] = [];
   private readonly orderBuf: Unit[] = [];
   private readonly nearArea: Unit[] = [];
+  private readonly kiteBuf: Unit[] = [];
   private readonly fields = new Map<string, { at: number; dist: Float32Array }>();
   private readonly byId = new Map<string, Unit>();
   private teamCache: [Unit[], Unit[]] = [[], []];
@@ -231,6 +240,7 @@ export class Fight {
   private summonSeq = 0;
   private result: FightResult['result'] | null = null;
   private stuckSeconds = 0;
+  private overtime = false;
   private peakUnits = 0;
   private runningHash = 0x811c9dc5;
   private embers: number;
@@ -315,7 +325,7 @@ export class Fight {
     const u: Unit = {
       spawnIndex: this.spawnCount++, tags: [], typeMods: {}, backliner: false, minion: false,
       hp: partial.base.maxHp, shield: 0, shieldLeft: 0, energy: 0, x: 0, y: 0, vx: 0, vy: 0, fx: partial.team === 0 ? 1 : -1, fy: 0,
-      cooldowns: {}, statuses: [], ruleIdx: -1, alive: true, downedLeft: 0, summonLeft: 0, stuckT: 0, lastX: 0, lastY: 0,
+      cooldowns: {}, statuses: [], ruleIdx: -1, alive: true, downedLeft: 0, summonLeft: 0, stuckT: 0, lastActTick: 0, lastX: 0, lastY: 0,
       rare: false, fleeAt: 0, threat: new Map(), boostNext: 1, cc: { n: 0, until: 0 }, roles: {},
       s: newCounters(), ...partial,
     };
@@ -475,6 +485,7 @@ export class Fight {
       if (this.canAct(u) && !u.windup && (this.tick + u.spawnIndex) % cadence === 0) this.decide(u);
     }
     for (const u of ordered) this.move(u);
+    if (this.tick % 2 === 0) this.unstack(ordered);
     for (const u of ordered) this.act(u);
     if (this.full && this.tick % 5 === 0) {
       this.emit('pos', { u: this.units.filter((u) => u.alive).map((u) => [u.id, r2(u.x), r2(u.y), r2(Math.atan2(u.fy, u.fx)), Math.max(0, Math.round(u.hp)), Math.round(u.energy)]) }, true);
@@ -541,6 +552,8 @@ export class Fight {
       let target = taunter && this.active(taunter) && !ABILITIES[ab].friendly ? taunter : this.target(u, r.on, ABILITIES[ab]);
       if (!target) continue;
       const [intent, arg] = (r.move ?? 'approach').split(':');
+      // a kiter never freezes between running and closing in: if its pick is out of reach, it shoots what it can hit
+      if (intent === 'kite' && target !== u && target.team !== u.team && target.id !== this.focusId) target = this.inReachInstead(u, target, ABILITIES[ab]);
       u.plan = { ability: ab, targetId: target.id, intent, arg: arg ? +arg : 0 };
       if (u.ruleIdx !== i || this.full) {
         if (u.ruleIdx !== i) this.emit('rule', { unit: u.id, rule: i, text: (r.text ?? r.use).replace('{t}', target.name) });
@@ -551,10 +564,21 @@ export class Fight {
     u.plan = undefined;
   }
 
+  /** The nearest foe this ability can hit from here, when `t` is out of reach; otherwise `t`. */
+  private inReachInstead(u: Unit, t: Unit, ab: AbilityDef): Unit {
+    if (this.gap(u, t) <= ab.range) return t;
+    let best: Unit | undefined, bd = Infinity;
+    for (const e of this.enemiesOf(u)) {
+      const g = this.gap(u, e);
+      if (g <= ab.range && g < bd && lineOfSight(this.field.nav, u.x, u.y, e.x, e.y)) { bd = g; best = e; }
+    }
+    return best ?? t;
+  }
+
   private abilityFor(u: Unit, r: RuleDef): string | undefined {
     if (r.use === 'basic') return u.basic;
     if (r.use === 'ult') return u.ult && u.energy >= 100 ? u.ult : undefined;
-    if (r.use === 'revive') return [...u.skills, u.ult].find((a) => a && ABILITIES[a].effects.some((e) => e.type === 'revive') && (u.cooldowns[a] ?? 0) <= 0);
+    if (r.use === 'revive') return [...u.skills, u.ult].find((a) => a && ABILITIES[a].effects.some((e) => e.type === 'revive') && (u.cooldowns[a] ?? 0) <= 0 && (a !== u.ult || u.energy >= 100));
     const sk = r.skill ?? u.skills[0];
     return sk && (u.cooldowns[sk] ?? 0) <= 0 ? sk : undefined;
   }
@@ -684,11 +708,18 @@ export class Fight {
       const reach = (ab.delivery === 'self' && ab.affects !== 'enemies') ? Infinity : ab.range * 0.9;
       const inReach = t === u || this.gap(u, t) <= reach;
       const blocked = t !== u && (ab.delivery === 'projectile' || ab.delivery === 'telegraph') && !lineOfSight(this.field.nav, u.x, u.y, t.x, t.y);
-      if (plan.intent === 'kite') {
-        const threats = this.hash.query(u.x, u.y, plan.arg).filter((o) => o.team !== u.team && this.active(o));
-        if (threats.length) {
-          for (const o of threats) { const d = Math.max(0.1, this.dist(u, o)); dx += (u.x - o.x) / d / d; dy += (u.y - o.y) / d / d; }
-        } else if (!inReach || blocked) [dx, dy] = this.steerTo(u, t.x, t.y);
+      // stall breaker: a unit that hasn't managed an action in a while stops kiting, regrouping or screening and closes in
+      const stalled = t !== u && this.tick - u.lastActTick > STALL_TICKS;
+      if (stalled && plan.intent !== 'hold') {
+        if (!inReach || blocked) [dx, dy] = this.steerTo(u, t.x, t.y);
+      } else if (plan.intent === 'kite') {
+        // keep away from threats, but never further than this ability can reach
+        const keep = ab.range >= 2 ? Math.min(plan.arg, reach + u.base.radius + 0.3) : plan.arg;
+        const near = this.hash.query(u.x, u.y, keep + KITE_BAND, this.kiteBuf).filter((o) => o.team !== u.team && this.active(o));
+        const threats = near.filter((o) => this.dist(u, o) <= keep);
+        if (threats.length) [dx, dy] = this.escape(u, threats);
+        // just outside the kite distance, hold ground rather than step back in and out (the stall breaker still moves it)
+        else if ((!inReach || blocked) && !near.length) [dx, dy] = this.steerTo(u, t.x, t.y);
       } else if (plan.intent === 'regroup') {
         const allies = this.alliesOf(u).filter((a) => a !== u);
         if (allies.length) {
@@ -706,6 +737,8 @@ export class Fight {
         [dx, dy] = this.steerTo(u, t.x, t.y);
       }
     }
+    // trying to get somewhere (before separation), for stuck detection
+    const wants = Math.hypot(dx, dy) > 1e-3;
     // separation (spatial hash, no O(n²))
     for (const o of this.hash.query(u.x, u.y, u.base.radius + 0.45, this.near)) {
       if (o === u || !o.alive || o.downedLeft > 0) continue;
@@ -722,12 +755,50 @@ export class Fight {
     if (walkableAt(nav, nx + Math.sign(u.vx) * u.base.radius * 0.6, u.y)) u.x = nx;
     if (walkableAt(nav, u.x, ny + Math.sign(u.vy) * u.base.radius * 0.6)) u.y = ny;
     if (!faced && Math.hypot(u.vx, u.vy) > 0.05) { u.fx = u.vx; u.fy = u.vy; }
-    // stuck detection: wanting to move but barely moving for a second
+    // stuck detection: wanting to move, barely moving and not fighting either, for a second
     if (this.tick % TICKS_PER_S === 0) {
       const moved = Math.hypot(u.x - u.lastX, u.y - u.lastY);
-      if (moved < 0.1 && plan && plan.intent !== 'hold') { this.stuckSeconds += 1; u.stuckT += 1; }
+      if (moved < 0.1 && wants && this.tick - u.lastActTick > TICKS_PER_S) { this.stuckSeconds += 1; u.stuckT += 1; }
       else u.stuckT = 0;
       u.lastX = u.x; u.lastY = u.y;
+    }
+  }
+
+  /**
+   * The best way out from the threats: of 16 directions that are walkable a step ahead, the one whose
+   * landing spot is least threatened. Slides along walls; when cornered (nothing beats standing), stays put.
+   */
+  private escape(u: Unit, threats: Unit[]): [number, number] {
+    const nav = this.field.nav, step = 0.6, r = u.base.radius;
+    const danger = (x: number, y: number) => { let v = 0; for (const o of threats) { const d2 = Math.max(0.01, (x - o.x) ** 2 + (y - o.y) ** 2); v += 1 / d2; } return v; };
+    let best = danger(u.x, u.y) * 0.95, bx = 0, by = 0;
+    for (const [cx, cy] of ESCAPE_DIRS) {
+      const px = u.x + cx * step, py = u.y + cy * step;
+      if (!walkableAt(nav, px + cx * r, py + cy * r) || !walkableAt(nav, u.x + cx * step * 0.5, u.y + cy * step * 0.5)) continue;
+      const v = danger(px, py);
+      if (v < best) { best = v; bx = cx; by = cy; }
+    }
+    return [bx, by];
+  }
+
+  /**
+   * Hard separation after movement: steering alone loses to a strong pull toward a target, so
+   * standing units pushed deeper than 80% into each other are moved apart, half each, where walkable.
+   */
+  private unstack(units: Unit[]) {
+    const nav = this.field.nav;
+    for (const u of units) {
+      if (!this.active(u)) continue;
+      for (const o of this.hash.query(u.x, u.y, u.base.radius + 0.6, this.near)) {
+        if (o === u || o.spawnIndex < u.spawnIndex || !this.active(o)) continue;
+        const min = (u.base.radius + o.base.radius) * 0.8;
+        let dx = o.x - u.x, dy = o.y - u.y, d = Math.hypot(dx, dy);
+        if (d >= min) continue;
+        if (d < 1e-6) { dx = u.spawnIndex % 2 ? 1 : -1; dy = 0.3; d = Math.hypot(dx, dy); }
+        const push = (min - d) / 2, px = (dx / d) * push, py = (dy / d) * push;
+        if (walkableAt(nav, o.x + px, o.y + py)) { o.x += px; o.y += py; }
+        if (walkableAt(nav, u.x - px, u.y - py)) { u.x -= px; u.y -= py; }
+      }
     }
   }
 
@@ -770,6 +841,7 @@ export class Fight {
     // Pounce: a catfolk's first action of the fight has no wind-up
     const windup = !u.pounced && trait(u.race, 'pounce') ? 0 : ab.windup;
     if (trait(u.race, 'pounce')) u.pounced = true;
+    u.lastActTick = this.tick;
     u.windup = { ability: ab.id, targetId: t.id, ax: t.x, ay: t.y, left: windup };
     this.emit('windup', { unit: u.id, ability: ab.id, target: t.id, dur: windup });
     if (windup <= 0) { u.windup = undefined; this.resolve(u, ab.id, t.id, t.x, t.y); }
@@ -1058,6 +1130,12 @@ export class Fight {
       this.emit('hit', { src: src?.id, dst: t.id, ability, dmg: 0, dmgType: type, crit, downed: true });
       if (t.downedLeft <= 0) this.die(t, src, 'finished');
       return;
+    }
+    // overtime: past the start, the dark closes in and every blow lands harder, so no fight can stall forever
+    const over = this.tick * TICK - DELVE.overtime.start;
+    if (over > 0) {
+      if (!this.overtime) { this.overtime = true; this.emit('overtime', {}); }
+      dmg = Math.round(dmg * (1 + (DELVE.overtime.per10s * over) / 10));
     }
     let left = dmg;
     if (t.shield > 0) { const a = Math.min(t.shield, left); t.shield -= a; left -= a; }
