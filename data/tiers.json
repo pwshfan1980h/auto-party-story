@@ -217,11 +217,14 @@
       "pool": {
         "cave_spider": 3,
         "venom_spitter": 2,
-        "goblin_cutter": 3,
+        "goblin_cutter": 2,
         "goblin_archer": 2,
         "green_slime": 2,
         "goblin_shaman": 1,
-        "goblin_sapper": 1
+        "goblin_sapper": 1,
+        "spore_shambler": 2,
+        "puffball": 1,
+        "mycelial_tender": 1
       }
     },
     "elite": {

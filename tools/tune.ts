@@ -72,6 +72,10 @@ for (const t of TIER_LIST) {
   // the best Leaders are bold but not reckless, and nobody experienced turns home after two rooms
   BANDS.push({ key: `${t} master wipe`, band: [0, 0.08], scale: 0.04, weight: 1.5 });
   BANDS.push({ key: `${t} seasoned rooms`, band: [4, 99], scale: 1, weight: 1 });
+  // the stubborn dwarf preset the runs suite watches, and rank paying off per life lost
+  BANDS.push({ key: `${t} dwarf deaths/hero`, band: TARGETS.deathsPerHeroPerRun as [number, number], scale: 0.03, weight: 1 });
+  BANDS.push({ key: `${t} dwarf wipe`, band: [0, TARGETS.wipePerRun], scale: 0.04, weight: 1 });
+  BANDS.push({ key: `${t} master/novice per death`, band: [1.3, 99], scale: 0.3, weight: 0.7 });
   // a new player's novice Leader should lose some runs, not most of them
   BANDS.push({ key: `${t} novice wipe`, band: [0, 0.3], scale: 0.05, weight: 1 });
   // rank must pay: Master banks at least 10% more than Seasoned, and novices die at least twice as often as Masters
@@ -95,6 +99,10 @@ function measure(seeds: number, from = 0, tiers = TIER_LIST): Metrics {
     m[`${t} seasoned deaths/hero`] = ladder.seasoned.deathsPerHero;
     m[`${t} seasoned wipe`] = ladder.seasoned.wipe;
     m[`${t} novice wipe`] = ladder.novice.wipe;
+    const dwarf = runStats(t, 'seasoned-dwarf', 'trust', seeds, undefined, from);
+    m[`${t} dwarf deaths/hero`] = dwarf.deathsPerHero;
+    m[`${t} dwarf wipe`] = dwarf.wipe;
+    m[`${t} master/novice per death`] = ladder.master.bankedPerDeath / Math.max(1, ladder.novice.bankedPerDeath);
     m[`${t} master wipe`] = ladder.master.wipe;
     m[`${t} seasoned rooms`] = ladder.seasoned.rooms;
     m[`${t} master/seasoned banked`] = ladder.master.banked / Math.max(1, ladder.seasoned.banked);

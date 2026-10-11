@@ -1,12 +1,13 @@
 // The roster between runs (spec 08): XP and levels, rest after being carried out, Leadership
 // growth and permadeath. Shared by the game and the simulated campaign so both follow one rulebook.
 import { PROGRESSION, TIERS } from './data';
+import { synergies, trait } from './racials';
 import type { RunHero, RunResult } from './run';
 import type { Zone } from './types';
 
 export interface RosterHero { hero: RunHero; xp: number; benched: number; runsLed: number; alive: boolean; born: number }
 
-export const ZONE: Record<string, Zone> = { fighter: 'front', knight: 'front', berserker: 'front', rogue: 'middle', assassin: 'middle', bard: 'middle', cleric: 'back', ranger: 'back', sniper: 'back', mage: 'back', alchemist: 'back', necromancer: 'back' };
+export const ZONE: Record<string, Zone> = { fighter: 'front', knight: 'front', berserker: 'front', skald: 'front', inquisitor: 'front', rogue: 'middle', assassin: 'middle', trickster: 'middle', bard: 'middle', minstrel: 'back', cleric: 'back', priest: 'back', ranger: 'back', sniper: 'back', beastmaster: 'back', mage: 'back', elementalist: 'back', chronomancer: 'back', alchemist: 'back', grenadier: 'back', apothecary: 'back', necromancer: 'back', lich: 'back', bonecaller: 'back' };
 
 export const xpToNext = (level: number) => Math.round(PROGRESSION.xpCurve.base * Math.pow(level, PROGRESSION.xpCurve.exponent));
 
@@ -23,9 +24,12 @@ export interface RunAftermath {
 export function applyRun(roster: RosterHero[], party: RosterHero[], leader: RosterHero, r: RunResult, tier: string, recovery = 2): RunAftermath {
   const out: RunAftermath = { levelled: [], died: [], xp: {} };
   const survivors = party.filter((h) => !r.died.includes(h.hero.id));
+  const syn = synergies(party.map((h) => h.hero.raceId));
   for (const h of survivors) {
     // XP, with the over-level penalty and catch-up bonus
     let share = r.xp / Math.max(1, survivors.length);
+    // Adaptable humans learn faster; a Militia (2+ humans) lifts everyone
+    share *= 1 + (trait(h.hero.raceId, 'adaptable')?.xp ?? 0) + (syn.get('militia')?.params.xp ?? 0);
     if (h.hero.level >= TIERS[tier].heroLevel + PROGRESSION.overLevelGap) share *= PROGRESSION.overLevelMult;
     else if (h.hero.level < TIERS[tier].heroLevel) share *= PROGRESSION.underLevelMult;
     h.xp += share;

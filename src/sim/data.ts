@@ -16,7 +16,7 @@ import gearJson from '../../data/gear.json';
 import hazardsJson from '../../data/hazards.json';
 import eventsJson from '../../data/events.json';
 import itemsJson from '../../data/items.json';
-import type { AbilityDef, Attrs, Role, RuleDef, StatusDef, Stats } from './types';
+import type { AbilityDef, Attrs, DamageType, Role, RuleDef, StatusDef, Stats } from './types';
 
 type StatBlock = Partial<Pick<Stats, 'maxHp' | 'power' | 'spell' | 'armor' | 'move' | 'crit' | 'evasion' | 'parry' | 'block'>>;
 
@@ -37,12 +37,16 @@ export interface ClassDef {
   gear?: GearRef;
 }
 
+export interface RaceTrait { id: string; name: string; about: string; [param: string]: string | number }
 export interface RaceDef {
   name: string;
   pct: Partial<Record<'maxHp' | 'power' | 'spell', number>>;
-  add: Partial<Record<'armor' | 'move' | 'crit' | 'accuracy' | 'evasion', number>>;
-  ruleSlots?: number;
+  add: Partial<Record<'armor' | 'move' | 'crit' | 'accuracy' | 'evasion' | 'energyGain', number>>;
+  resist?: Partial<Record<DamageType, number>>;
   temperament: string;
+  trait: RaceTrait;
+  synergy: RaceTrait;
+  unlock: { kind: 'start' | 'delves' | 'cleared' | 'reached' | 'built' | 'memorial' | 'later'; n?: number; tier?: string; hint?: string };
 }
 
 export interface SpeciesDef {
@@ -126,7 +130,7 @@ export const STATUSES: Record<string, StatusDef> = Object.fromEntries(
   Object.entries(statusesJson).map(([id, s]) => [id, { id, ...(s as Omit<StatusDef, 'id'>) }]),
 );
 export const CLASSES = classesJson as Record<string, ClassDef>;
-export const RACES = racesJson as Record<string, RaceDef>;
+export const RACES = Object.fromEntries(Object.entries(racesJson).filter(([k]) => !k.startsWith('_'))) as unknown as Record<string, RaceDef>;
 export const SPECIES = monstersJson.species as Record<string, SpeciesDef>;
 export const ARCHETYPES = monstersJson.archetypes as Record<string, ArchetypeDef>;
 export const RANKS = monstersJson.ranks as Record<string, RankDef>;
@@ -190,7 +194,7 @@ export const ORDERS_DATA = ordersJson as unknown as {
   goodBot: { mendBelowHp: number; unleashBelowHp: number; holdBelowHp: number; reserveForInterrupt: number };
 };
 
-export const PROGRESSION = progressionJson as { defense: { parryPerAgility: number; blockPerVigor: number; cap: number }; bot: { tierSlack: number; pushAt: number }; killXpPerLevel: number; roomClearBonus: number; xpCurve: { base: number; exponent: number }; overLevelGap: number; overLevelMult: number; underLevelMult: number; maxLevel: number };
+export const PROGRESSION = progressionJson as { promoteLevel: number; defense: { parryPerAgility: number; blockPerVigor: number; cap: number }; bot: { tierSlack: number; pushAt: number }; killXpPerLevel: number; roomClearBonus: number; xpCurve: { base: number; exponent: number }; overLevelGap: number; overLevelMult: number; underLevelMult: number; maxLevel: number };
 
 export const RULES = Object.fromEntries(
   Object.entries(rulesJson).filter(([k]) => !k.startsWith('_')),

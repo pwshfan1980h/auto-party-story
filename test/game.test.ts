@@ -199,3 +199,33 @@ describe('launch assistance', () => {
     expect(assist(s)).toEqual([]);
   });
 });
+
+describe('races arrive over time', () => {
+  it('starts with four peoples, and others come with milestones', async () => {
+    const { metRaces } = await import('../src/game/state');
+    const s = newGame(51);
+    expect(metRaces(s).sort()).toEqual(['dwarf', 'elf', 'halfling', 'human']);
+    expect(s.hireBoard.every((h) => ['dwarf', 'elf', 'halfling', 'human'].includes(h.hero.raceId))).toBe(true);
+    s.runs = 3; expect(metRaces(s)).toContain('orc');
+    s.unlocked = 1; expect(metRaces(s)).toContain('goblin');
+    s.unlocked = 2; expect(metRaces(s)).toContain('myconid');
+    expect(metRaces(s)).not.toContain('construct');
+  });
+});
+
+describe('promotion', () => {
+  it('a level-10 hero trains as a Specialist once the Academy stands', async () => {
+    const { build, promote, promotions } = await import('../src/game/state');
+    const s = newGame(61);
+    const f = s.roster.find((h) => h.hero.classId === 'fighter')!;
+    expect(promotions(s, f.hero.id).options.sort()).toEqual(['berserker', 'knight']);
+    expect(promote(s, f.hero.id, 'knight')).toMatch(/level/);
+    f.hero = { ...f.hero, level: 10 };
+    expect(promote(s, f.hero.id, 'knight')).toMatch(/Academy/);
+    s.coin = 1000; build(s, 'academy');
+    expect(promote(s, f.hero.id, 'mage')).toMatch(/can't/);
+    expect(promote(s, f.hero.id, 'knight')).toBeNull();
+    expect(f.hero.classId).toBe('knight');
+    expect(promotions(s, f.hero.id).options).toEqual([]);
+  });
+});

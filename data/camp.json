@@ -3,6 +3,7 @@
   "upgrades": {
     "infirmary":     { "name": "Infirmary",         "cost": 150, "about": "Heroes carried out of a delve recover one delve sooner.", "effect": { "recovery": -1 } },
     "lamplighter":   { "name": "Lamplighter's Hut", "cost": 120, "about": "Every delve sets out with 3 more torch fuel.",         "effect": { "torch": 3 } },
-    "training_yard": { "name": "Training Yard",     "cost": 220, "about": "Recruits on the hire board arrive one level higher.",  "effect": { "recruitLevel": 1 } }
+    "training_yard": { "name": "Training Yard",     "cost": 220, "about": "Recruits on the hire board arrive one level higher.",  "effect": { "recruitLevel": 1 } },
+    "academy":       { "name": "Academy",           "cost": 250, "about": "Heroes of level 10 can train as Specialists.",          "effect": { "academy": 1 } }
   }
 }

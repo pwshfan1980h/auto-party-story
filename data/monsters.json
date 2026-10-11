@@ -5,6 +5,8 @@
     "_doc": "Global tuning knobs (spec 09 auto-tuner). Multiply every monster."
   },
   "species": {
+    "myconid": {"natural": true, "family": "myconids", "tags": ["plant"], "model": "species:myconid", "minion": "slimeling", "stats": {"maxHp": 95, "power": 9, "spell": 6, "armor": 3, "move": 1.1}, "typeMods": {"fire": 1.4, "poison": 0.3, "frost": 1.15}},
+    "wolf": {"natural": true, "family": "beasts", "tags": ["beast"], "model": "species:wolf", "minion": "spirit_wolf", "stats": {"maxHp": 95, "power": 11, "spell": 2, "armor": 4, "move": 2.2}},
     "rat": { "natural": true,
       "family": "vermin",
       "tags": [
@@ -339,6 +341,10 @@
     }
   },
   "enemies": {
+    "spore_shambler": {"name": "Spore Shambler", "species": "myconid", "archetype": "grunt"},
+    "mycelial_tender": {"name": "Mycelial Tender", "species": "myconid", "archetype": "mender"},
+    "puffball": {"name": "Puffball", "species": "myconid", "archetype": "bomber"},
+    "spirit_wolf": {"name": "Spirit Wolf", "species": "wolf", "archetype": "skirmisher"},
     "sewer_rat": {
       "name": "Sewer Rat",
       "species": "rat",

@@ -175,6 +175,28 @@ function ghost(scale: number, caster = true): Model {
   return { id: 'ghost', rig: 'ghost', parts, scale, height: modelHeight(parts), style: caster ? 'caster' : 'bite' };
 }
 
+function wolf(scale: number): Model {
+  const fur = 0x8a8478, dark = 0x5a564e, pale = 0xb0aa9c;
+  const body = new PartBuilder('torso', [0, 7, 0]);
+  body.ellipsoid(0, 8, -1, 3, 3.2, 7.5, fur, 0.16);
+  body.ellipsoid(0, 9.5, 3, 3.2, 3, 3.4, fur, 0.14); // the ruff
+  body.paint((_x, y) => y <= 6, pale);
+  const head = new PartBuilder('head', [0, 9, 6], 'torso');
+  head.ellipsoid(0, 10, 7.5, 2.2, 2.2, 2.6, fur, 0.12);
+  head.box(-1, 8.5, 9.5, 1, 9.8, 12, fur).box(0, 9.2, 12.5, 0, 9.8, 12.5, P.ink); // muzzle and nose
+  for (const s2 of [-1, 1]) { head.box(s2 * 1.3, 12, 6.5, s2 * 1.8, 14, 7, dark); head.set(s2 * 1, 10.6, 9.6, P.glowCyan, 0); }
+  const tail = new PartBuilder('tail', [0, 9, -8], 'torso');
+  tail.line(0, 9, -8.5, 0, 7, -13, fur, 1.4).line(0, 7, -13, 0, 6, -15, pale, 1.2);
+  const legs: Part[] = [];
+  for (const [n, x, z] of [['legFL', 1.8, 4], ['legFR', -1.8, 4], ['legBL', 2, -5], ['legBR', -2, -5]] as const) {
+    const l = new PartBuilder(n, [x, 6, z]);
+    l.box(x, 0, z, x, 5.5, z, dark).box(x, 0, z + 1, x, 0, z + 1, dark);
+    legs.push(l.build());
+  }
+  const parts = [body.build(), head.build(), tail.build(), ...legs];
+  return { id: 'wolf', rig: 'quad', parts, scale, height: modelHeight(parts), style: 'bite' };
+}
+
 // ---------------- the registry ----------------
 
 /** A model for any enemy id in data/monsters.json. Deterministic. */
@@ -189,6 +211,7 @@ export function enemyModel(enemyId: string, rankOverride?: string): Model {
   switch (species) {
     case 'rat': m = rat(scale * (arche === 'brute' ? 1.3 : 1), arche === 'brute'); break;
     case 'bat': m = bat(scale); break;
+    case 'wolf': m = wolf(scale); break;
     case 'spider': m = spider(scale * (arche === 'guardian' ? 1.2 : 1)); break;
     case 'slime': m = slime(scale, arche === 'brute' ? 0xb0c83a : P.slime); break;
     case 'ghost': m = ghost(scale, arche !== 'swarm'); break;
@@ -207,12 +230,12 @@ export function enemyModel(enemyId: string, rankOverride?: string): Model {
     }
     default: {
       // humanoid species: zombie, cultist, robber, goblin
-      const race = species === 'goblin' ? 'goblin' : 'human';
+      const race = species === 'goblin' ? 'goblin' : species === 'myconid' ? 'myconid' : 'human';
       const look = rollLook(race, enemyId);
       if (species === 'zombie') { look.skin = P.zombie; look.hair = P.hairGrey; look.hairStyle = 'crop'; look.beard = false; look.detail = 'none'; }
       const outfit0 = species === 'cultist' || species === 'robber';
       const rig = buildBody(outfit0 ? { ...look, hairStyle: 'bald' } : look);
-      const outfit: Outfit = species === 'zombie' ? 'zombie' : species === 'cultist' ? 'cultist' : species === 'robber' ? 'robber' : 'rags';
+      const outfit: Outfit = species === 'zombie' ? 'zombie' : species === 'cultist' ? 'cultist' : species === 'robber' ? 'robber' : species === 'myconid' ? 'none' : 'rags';
       clothe(rig, outfit, look);
       equip(rig, ARCH_GEAR[arche] ?? 'sword', look.accent);
       if (species === 'zombie') {

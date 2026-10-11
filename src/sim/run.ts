@@ -1,7 +1,8 @@
 // A whole Delve run (spec 07 + DESIGN §7): fogged floor maps, many battles on generated
 // battlefields, the torch, the loot pack, Leader decisions, Hardcore permadeath, and the
 // Delve Ledger.
-import { CLASSES, ENEMIES, EVENTS, ITEMS, ITEMS_DATA, LEADERSHIP, PROGRESSION, RANKS, TIERS, DELVE, type EventDef } from './data';
+import { CLASSES, ENEMIES, EVENTS, ITEMS, ITEMS_DATA, LEADERSHIP, PROGRESSION, RACES, RANKS, TIERS, DELVE, type EventDef } from './data';
+import { synergies, trait } from './racials';
 const tierIndexOf = (t: string) => ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'].indexOf(t) + 1;
 const RUN_RULES = DELVE as unknown as { council: { bigRoomBelowHp: number; fuelSpare: number }; events: { riskWeight: number } };
 import { FIGHT_TYPES, generateFloor, reveal, type FloorMap, type MapNode, type NodeType } from './delve';
@@ -98,7 +99,7 @@ export interface RunResult {
   heroes: Record<string, { hp: number; maxHp: number; fell: boolean; carried: boolean; dealt: number; healed: number; kills: number }>;
 }
 
-interface HeroState { snap: RunHero; hp: number; maxHp: number; energy: number; alive: boolean; carried: boolean; dealt: number; healed: number; kills: number }
+interface HeroState { traitSpent?: boolean; snap: RunHero; hp: number; maxHp: number; energy: number; alive: boolean; carried: boolean; dealt: number; healed: number; kills: number }
 
 
 /**
@@ -156,7 +157,9 @@ export function* delveSteps(setup: RunSetup): Generator<DelveRequest, RunResult,
     }
   };
   const leaderRng = stream(setup.seed, 'leader');
-  const slots = setup.packSlots ?? 8;
+  // race synergies fielded at the start of the delve
+  const syn = synergies(setup.party.map((h) => h.raceId));
+  const slots = (setup.packSlots ?? 8) + (syn.get('pocketThieves')?.params.slots ?? 0);
   // the party brings torches for the planned depth (the Market sells them in the full game)
   // a waystone skips the floors above it; the party packs torches for the floors left
   const first = Math.max(tier.floors[0], Math.min(tier.floors[1], setup.startFloor ?? tier.floors[0]));
@@ -199,8 +202,10 @@ export function* delveSteps(setup: RunSetup): Generator<DelveRequest, RunResult,
     return Math.max(-1, Math.min(1, last.reduce((s, l) => s + (exp - l) / exp, 0) / last.length));
   };
   const addLoot = (items: number, each: number, gained: string[], lost: string[]) => {
+    // Scavenger: while a goblin lives, finds are worth more
+    const scav = active().some((h) => trait(h.snap.raceId, 'scavenger')) ? 1 + (RACES.goblin.trait as unknown as { loot: number }).loot : 1;
     for (let i = 0; i < items; i++) {
-      const v = Math.round(each * (0.6 + rng.next() * 0.8));
+      const v = Math.round(each * (0.6 + rng.next() * 0.8) * scav);
       if (pack.length < slots) { pack.push(v); gained.push(`item (${v})`); }
       else {
         const min = Math.min(...pack);
@@ -220,7 +225,8 @@ export function* delveSteps(setup: RunSetup): Generator<DelveRequest, RunResult,
 
   function* fightRoom(n: MapNode, fl: number, entry: LedgerEntry, ambush = false): Generator<DelveRequest, 'won' | 'lost' | 'fled', DelveAnswer> {
     const roomType: RoomType = n.type === 'elite' || n.type === 'horde' || n.type === 'boss' ? n.type : 'normal';
-    const dark = torch <= 0 || ambush;
+    // Prowl: catfolk keep the party from being caught in the dark
+    const dark = (torch <= 0 || ambush) && !syn.has('prowl');
     const monsters = buildEncounter(setup.tier, roomType, fl + (dark ? 2 : 0), stream(setup.seed, 'enc', fl, n.id), n.named);
     ensureLeader();
     const lh = heroes.get(leaderId)!;
@@ -230,7 +236,7 @@ export function* delveSteps(setup: RunSetup): Generator<DelveRequest, RunResult,
     const before = team.map((h) => (h.hp < 0 ? 1 : h.hp / h.maxHp));
     const fightSetup: FightSetup = {
       seed: setup.seed, key: [fl, n.id], tier: setup.tier, roomType,
-      heroes: team.map((h) => ({ ...h.snap, hp: h.hp < 0 ? undefined : h.hp, energy: h.energy })),
+      heroes: team.map((h) => ({ ...h.snap, hp: h.hp < 0 ? undefined : h.hp, energy: h.energy, traitSpent: h.traitSpent })),
       monsters,
       leader: { heroId: lh.snap.id, rank: LP.rank.id as 'novice', noise: LP.rank.noise, temperament: LP.temperament },
       embers,
@@ -254,6 +260,7 @@ export function* delveSteps(setup: RunSetup): Generator<DelveRequest, RunResult,
       h.hp = u.hp;
       h.energy = u.energy * 0.5;
       h.dealt += u.dealt; h.healed += u.healed; h.kills += u.kills;
+      if (u.traitSpent) h.traitSpent = true;
       if (!mvp || u.dealt + u.healed > mvp.dealt) mvp = { id: h.snap.id, dealt: u.dealt + u.healed };
       if (!u.alive) { h.alive = false; entry.lost.push(`${h.snap.name} fell`); }
       else if (u.downed) { h.carried = true; h.hp = 0; entry.lost.push(`${h.snap.name} Downed, carried out`); }
@@ -284,7 +291,8 @@ export function* delveSteps(setup: RunSetup): Generator<DelveRequest, RunResult,
     if (rareKills) { raresKilled += rareKills; addLoot(2 * rareKills, 20 * fl, entry.gained, entry.lost); entry.gained.push('Rare spoils'); }
     // field dressing between rooms: survivors patch up, more with a healer along
     const medic = active().some((h) => (CLASSES[h.snap.classId].roles.heal ?? 0) >= 2);
-    for (const h of active()) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * (medic ? 0.2 : 0.1));
+    const rest = syn.get('mycelium')?.params.heal ?? 1;
+    for (const h of active()) if (!trait(h.snap.raceId, 'ironframe')) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * (medic ? 0.2 : 0.1) * rest);
     entry.result = 'won';
     let gainedXp = 0;
     for (const m of monsters) { const rk = RANKS[m.rank ?? ENEMIES[m.enemyId].rank ?? 'normal']; gainedXp += PROGRESSION.killXpPerLevel * m.level * rk.xp; }
@@ -322,7 +330,7 @@ export function* delveSteps(setup: RunSetup): Generator<DelveRequest, RunResult,
       ensureLeader();
       const leader = heroes.get(leaderId)!;
       const L = leaderProfile({ id: leader.snap.id, name: leader.snap.name, raceId: leader.snap.raceId, leadership: leader.snap.leadership });
-      reveal(map, at, L.rank.vision + (L.temper.visionBonus ?? 0), L.rank.knowsTypes);
+      reveal(map, at, L.rank.vision + (L.temper.visionBonus ?? 0) + (syn.get('starsight')?.params.vision ?? 0), L.rank.knowsTypes);
       const node = map.nodes[at];
       if (node.type === 'stairs') break;
       if (node.type === 'boss') break;
@@ -399,8 +407,9 @@ export function* delveSteps(setup: RunSetup): Generator<DelveRequest, RunResult,
         // a campfire is a way out: from here on, the way home is measured from this fire
         roomsHome = 0;
         embers = Math.min(EMBER_CAP, embers + 1);
-        for (const h of active()) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * 0.25);
-        entry.gained.push('rest (+25% HP)');
+        const rest = syn.get('mycelium')?.params.heal ?? 1;
+        for (const h of active()) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * 0.25 * rest);
+        entry.gained.push(`rest (+${Math.round(25 * rest)}% HP)`);
       } else if (next.type === 'treasure') {
         addLoot(2, 14 * floor, entry.gained, entry.lost);
         rollItems(3, entry);

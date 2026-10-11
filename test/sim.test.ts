@@ -126,3 +126,27 @@ describe('waystones', () => {
     expect(r.ledger.every((e) => e.floor === TIERS.I.floors[1])).toBe(true);
   });
 });
+
+describe('race traits and synergies', () => {
+  it('synergies need two of a race', async () => {
+    const { synergies } = await import('../src/sim/racials');
+    expect([...synergies(['dwarf', 'human', 'elf']).keys()]).toEqual([]);
+    expect([...synergies(['dwarf', 'dwarf', 'elf']).keys()]).toEqual(['shieldwall']);
+    expect(synergies(['goblin', 'goblin', 'goblin']).get('mob')?.count).toBe(3);
+  });
+
+  it('a lucky halfling survives one killing blow per delve, and a revenant rises once', () => {
+    let lucky = 0, risen = 0;
+    for (let s = 0; s < 60 && (!lucky || !risen); s++) {
+      const heroes = party(PRESETS.starter, 'II').map((h, i) => ({ ...h, raceId: i % 2 ? 'halfling' : 'revenant' }));
+      const r = runFight({ seed: s, tier: 'II', roomType: 'boss', heroes, monsters: buildEncounter('II', 'boss', 5, stream(s, 'trait')), mode: 'full' });
+      for (const e of r.events) { if (e.type === 'trait' && e.trait === 'lucky') lucky++; if (e.type === 'trait' && e.trait === 'unliving') risen++; }
+      // each hero spends its trait at most once
+      const per = new Map<string, number>();
+      for (const e of r.events) if (e.type === 'trait' && (e.trait === 'lucky' || e.trait === 'unliving')) per.set(e.unit as string, (per.get(e.unit as string) ?? 0) + 1);
+      for (const n of per.values()) expect(n).toBe(1);
+    }
+    expect(lucky).toBeGreaterThan(0);
+    expect(risen).toBeGreaterThan(0);
+  });
+});

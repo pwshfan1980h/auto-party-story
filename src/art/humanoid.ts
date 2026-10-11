@@ -514,7 +514,9 @@ export function assemble(id: string, rig: Rig, style: Model['style'], scale = 1)
 }
 
 /** Classes → outfit and gear. */
-export const CLASS_LOOK: Record<string, { outfit: Outfit; gear: Gear; style: Model['style'] }> = {
+/** Specialists (T2) read at a glance: the base outfit plus a mark of rank in the class's colour. */
+export type Mark = { kind: 'mantle' | 'pauldrons'; color: Color };
+export const CLASS_LOOK: Record<string, { outfit: Outfit; gear: Gear; style: Model['style']; mark?: Mark }> = {
   fighter: { outfit: 'fighter', gear: 'swordShield', style: 'melee' },
   rogue: { outfit: 'rogue', gear: 'daggers', style: 'melee' },
   cleric: { outfit: 'cleric', gear: 'mace', style: 'caster' },
@@ -523,11 +525,34 @@ export const CLASS_LOOK: Record<string, { outfit: Outfit; gear: Gear; style: Mod
   bard: { outfit: 'bard', gear: 'lute', style: 'caster' },
   alchemist: { outfit: 'alchemist', gear: 'flask', style: 'ranged' },
   necromancer: { outfit: 'necromancer', gear: 'skullStaff', style: 'caster' },
-  knight: { outfit: 'fighter', gear: 'swordShield', style: 'melee' },
-  berserker: { outfit: 'fighter', gear: 'bigClub', style: 'melee' },
-  sniper: { outfit: 'ranger', gear: 'bow', style: 'ranged' },
-  assassin: { outfit: 'rogue', gear: 'daggers', style: 'melee' },
+  knight: { outfit: 'fighter', gear: 'swordShield', style: 'melee', mark: { kind: 'pauldrons', color: P.steelLight } },
+  berserker: { outfit: 'fighter', gear: 'bigClub', style: 'melee', mark: { kind: 'mantle', color: 0x6a4a30 } },
+  sniper: { outfit: 'ranger', gear: 'bow', style: 'ranged', mark: { kind: 'mantle', color: P.greenDark } },
+  assassin: { outfit: 'rogue', gear: 'daggers', style: 'melee', mark: { kind: 'mantle', color: P.black } },
+  trickster: { outfit: 'rogue', gear: 'daggers', style: 'melee', mark: { kind: 'mantle', color: P.purple } },
+  beastmaster: { outfit: 'ranger', gear: 'bow', style: 'ranged', mark: { kind: 'mantle', color: 0x8a8478 } },
+  priest: { outfit: 'cleric', gear: 'mace', style: 'caster', mark: { kind: 'mantle', color: P.gold } },
+  inquisitor: { outfit: 'cleric', gear: 'mace', style: 'melee', mark: { kind: 'pauldrons', color: P.redDark } },
+  elementalist: { outfit: 'mage', gear: 'staff', style: 'caster', mark: { kind: 'mantle', color: P.blue } },
+  chronomancer: { outfit: 'mage', gear: 'staff', style: 'caster', mark: { kind: 'pauldrons', color: P.bronze } },
+  skald: { outfit: 'bard', gear: 'bigClub', style: 'melee', mark: { kind: 'pauldrons', color: P.iron } },
+  minstrel: { outfit: 'bard', gear: 'lute', style: 'caster', mark: { kind: 'mantle', color: P.teal } },
+  grenadier: { outfit: 'alchemist', gear: 'flask', style: 'ranged', mark: { kind: 'pauldrons', color: P.leatherDark } },
+  apothecary: { outfit: 'alchemist', gear: 'flask', style: 'ranged', mark: { kind: 'mantle', color: P.green } },
+  lich: { outfit: 'necromancer', gear: 'skullStaff', style: 'caster', mark: { kind: 'mantle', color: 0x2a1a3a } },
+  bonecaller: { outfit: 'necromancer', gear: 'skullStaff', style: 'caster', mark: { kind: 'pauldrons', color: P.bone } },
 };
+
+/** A Specialist's mark: a cape down the back, or shoulder plates. */
+function mark(rig: Rig, m: Mark) {
+  const { frame: f, torso } = rig;
+  if (m.kind === 'mantle') {
+    torso.box(-f.hw, Math.max(1, f.legH - 3), f.z0 - 1, f.hw, f.torsoTop, f.z0 - 1, m.color, 0.1);
+    torso.box(-f.hw - 1, f.torsoTop - 1, f.z0 - 1, f.hw + 1, f.torsoTop, f.z1, shade(m.color, 1.1));
+  } else {
+    for (const sx of [-1, 1]) torso.rounded(sx * (f.hw + 0.5), f.torsoTop - 0.5, (f.z0 + f.z1) / 2, 2, 1.6, (f.z1 - f.z0) / 2 + 1, m.color, 0.08);
+  }
+}
 
 /** A hero model: race body + class outfit, varied by the hero's look. */
 const COVERED: ReadonlySet<Outfit> = new Set(['fighter', 'rogue', 'cleric', 'ranger', 'necromancer', 'cultist', 'robber']);
@@ -537,6 +562,7 @@ export function heroModel(classId: string, look: Look, id = `hero:${classId}:${l
   const rig = buildBody(COVERED.has(cl.outfit) ? { ...look, hairStyle: 'bald' } : look);
   clothe(rig, cl.outfit, look);
   equip(rig, cl.gear, look.accent);
+  if (cl.mark) mark(rig, cl.mark);
   if (look.detail === 'feather' && cl.outfit !== 'bard') rig.head.line(rig.frame.hx, rig.frame.headTop, -1, rig.frame.hx + 2, rig.frame.headTop + 4, -3, look.accent);
   return assemble(id, rig, cl.style);
 }

@@ -2,6 +2,7 @@
 // Phases per tick: timers → projectiles/telegraphs → decisions → movement → actions → deaths/end.
 import { ABILITIES, ARCHETYPES, CLASSES, ENEMIES, GEAR, HAZARDS, ORDERS_DATA, RULES, SPECIES, STATUSES, TIERS } from './data';
 import { Air } from './air';
+import { synergies, trait } from './racials';
 import { flowDir, flowField, generateField, lineOfSight, SpatialHash, walkableAt, type Field } from './field';
 import { hash32, stream, type Rng } from './rng';
 import { autoAttrs, heroStats, monsterStats, rollDamage } from './stats';
@@ -27,6 +28,8 @@ export interface HeroSnapshot {
   hp?: number;
   /** Equipped items (data/items.json). */
   items?: string[];
+  /** A once-per-delve race trait (Lucky, Unliving) already used this delve. */
+  traitSpent?: boolean;
 }
 
 export interface MonsterSpawn {
@@ -73,6 +76,8 @@ export interface FightSetup {
 export type SimEvent = { t: number; type: string } & Record<string, unknown>;
 
 export interface UnitSummary {
+  /** The unit used its once-per-delve race trait in this fight (or before it). */
+  traitSpent?: boolean;
   id: string;
   name: string;
   team: Team;
@@ -127,6 +132,13 @@ interface Plan { ability: string; targetId: string; intent: string; arg: number 
 interface QueuedOrder { kind: OrderKind; ability: string; targetId: string; until: number; boost: number; cost: number }
 
 export interface Unit {
+  /** Heroes: race (for traits), and the once-per-delve trait already used before this fight. */
+  race?: string;
+  traitSpent?: boolean;
+  /** One-shot trait flags for this fight. */
+  struck?: boolean;
+  stoneUsed?: boolean;
+  pounced?: boolean;
   id: string;
   name: string;
   spawnIndex: number;
@@ -267,7 +279,28 @@ export class Fight {
         this.emit('rare', { unit: u.id });
       }
     }
+    this.applySynergies();
   }
+
+  // ----- race synergies (DESIGN §2): any race fielded twice switches on a party bonus -----
+
+  private readonly syn = new Map<string, { params: Record<string, number>; count: number }>();
+
+  private applySynergies() {
+    const heroes = this.units.filter((u) => u.team === 0 && u.kind === 'hero');
+    for (const [k, v] of synergies(heroes.map((h) => h.race ?? ''))) this.syn.set(k, v);
+    const on = (id: string) => this.syn.get(id);
+    for (const h of heroes) {
+      if (on('shieldwall') && h.base.radius && this.isFront(h)) h.base.armor *= 1 + on('shieldwall')!.params.armor;
+      if (on('assembly')) h.base.armor *= 1 + on('assembly')!.params.armor * on('assembly')!.count;
+      if (on('glimmer')) h.base.evasion += on('glimmer')!.params.evasion;
+      if (on('mob')) h.base.atkSpeed += on('mob')!.params.atkSpeed * on('mob')!.count;
+    }
+    if (on('graveChill')) for (const e of this.units) if (e.team === 1) e.base.move *= 1 - on('graveChill')!.params.slow;
+    if (this.syn.size) this.emit('synergy', { on: [...this.syn.keys()] });
+  }
+
+  private isFront(u: Unit) { const c = CLASSES[u.defId]; return (c?.roles.tank ?? 0) >= 1 || (c?.roles.bruiser ?? 0) >= 1; }
 
   // ----- spawning -----
 
@@ -300,13 +333,15 @@ export class Fight {
     const base = heroStats(h.classId, h.raceId, h.level, attrs, h.gearScore, h.items);
     const [x, y] = this.place(0, h.zone, rng);
     const roles = c.roles;
-    this.baseUnit({
+    const unit = this.baseUnit({
       id: h.id, name: h.name, team: 0, kind: 'hero', defId: h.classId, level: h.level, base, x, y,
       basic: c.basic, skills: c.skills, ult: c.ult, rules: mergeTemplates(c.ruleTemplates),
       backliner: (roles.heal ?? 0) >= 2 || (roles.artillery ?? 0) >= 2 || (roles.area ?? 0) >= 2 || (roles.summon ?? 0) >= 2 || (roles.support ?? 0) >= 2,
       energy: h.energy ?? 0, tags: ['humanoid'], roles: roles as Record<string, number>,
       hp: h.hp !== undefined ? Math.max(1, Math.min(base.maxHp, h.hp)) : base.maxHp,
     });
+    unit.race = h.raceId;
+    unit.traitSpent = h.traitSpent;
   }
 
   private addMonster(enemyId: string, level: number, rank: string | undefined, team: Team, summoner: Unit | undefined, rng: Rng) {
@@ -449,6 +484,7 @@ export class Fight {
 
   private timers(units: Unit[]) {
     const statusTick = this.tick % 10 === 0;
+    if (statusTick) for (const u of units) { const rg = trait(u.race, 'regrowth'); if (rg && u.alive && u.downedLeft <= 0) u.hp = Math.min(u.base.maxHp, u.hp + u.base.maxHp * rg.perSecond * 0.5); }
     for (const u of units) {
       for (const k in u.cooldowns) u.cooldowns[k] -= TICK;
       if (u.shieldLeft > 0 && (u.shieldLeft -= TICK) <= 0) u.shield = 0;
@@ -710,7 +746,8 @@ export class Fight {
     if (!plan || !this.canAct(u) || this.flag(u, 'fear')) return;
     const ab = ABILITIES[plan.ability];
     if ((u.cooldowns[ab.id] ?? 0) > 0) return;
-    if (ab.kind === 'ult' && u.energy < 100) { u.plan = undefined; return; }
+    const pact = trait(u.race, 'bloodPact');
+    if (ab.kind === 'ult' && u.energy < 100 && !(pact && u.energy >= pact.energyAt && u.hp > u.base.maxHp * pact.hpCost * 2)) { u.plan = undefined; return; }
     const t = this.get(plan.targetId);
     if (!t || (!t.alive) || (t.downedLeft > 0 && !ab.effects.some((e) => e.type === 'revive'))) { u.plan = undefined; return; }
     const self = t === u || (ab.delivery === 'self' && ab.affects !== 'enemies');
@@ -724,13 +761,18 @@ export class Fight {
       this.emit('order', { kind: u.order.kind, unit: u.id, target: t.id, outcome: 'obeyed' });
       u.order = undefined;
     }
-    u.cooldowns[ab.id] = (ab.cooldown ?? 0) / this.stat(u, 'atkSpeed');
+    u.cooldowns[ab.id] = ((ab.cooldown ?? 0) / this.stat(u, 'atkSpeed')) * (u.team === 0 && this.syn.has('clockwork') ? 1 - this.syn.get('clockwork')!.params.cooldown : 1);
+    // Blood Pact: an early ultimate is paid for in blood
+    if (ab.kind === 'ult' && u.energy < 100 && pact) { u.hp = Math.max(1, u.hp - u.base.maxHp * pact.hpCost); this.emit('trait', { unit: u.id, trait: 'bloodPact' }); }
     if (ab.kind === 'ult') { u.energy = 0; u.s.ults++; this.emit('ult', { unit: u.id, ability: ab.id, cine: ab.cine ?? 3 }); }
     if (ab.kind === 'skill') this.gainEnergy(u, 15);
     if (t !== u) { u.fx = t.x - u.x; u.fy = t.y - u.y; }
-    u.windup = { ability: ab.id, targetId: t.id, ax: t.x, ay: t.y, left: ab.windup };
-    this.emit('windup', { unit: u.id, ability: ab.id, target: t.id, dur: ab.windup });
-    if (ab.windup <= 0) { u.windup = undefined; this.resolve(u, ab.id, t.id, t.x, t.y); }
+    // Pounce: a catfolk's first action of the fight has no wind-up
+    const windup = !u.pounced && trait(u.race, 'pounce') ? 0 : ab.windup;
+    if (trait(u.race, 'pounce')) u.pounced = true;
+    u.windup = { ability: ab.id, targetId: t.id, ax: t.x, ay: t.y, left: windup };
+    this.emit('windup', { unit: u.id, ability: ab.id, target: t.id, dur: windup });
+    if (windup <= 0) { u.windup = undefined; this.resolve(u, ab.id, t.id, t.x, t.y); }
   }
 
   private resolve(u: Unit, abilityId: string, targetId: string, ax: number, ay: number) {
@@ -774,7 +816,8 @@ export class Fight {
     // fog and smoke spoil a shot from or into them
     let murk = 0;
     if (ab.delivery === 'projectile') for (const [gas, def] of Object.entries(HAZARDS.gases)) if (def.rangedMiss) murk += def.rangedMiss * Math.max(this.air.at(gas, u.x, u.y), this.air.at(gas, t.x, t.y));
-    const chance = Math.min(1, Math.max(0.1, u.base.accuracy - this.stat(t, 'evasion') - murk));
+    const aloft = ab.delivery === 'melee' ? trait(t.race, 'aloft') : null;
+    const chance = Math.min(1, Math.max(0.1, u.base.accuracy - this.stat(t, 'evasion') - murk - (aloft?.meleeMiss ?? 0)));
     if (this.combat.next() < chance) return true;
     u.s.misses++;
     this.emit('miss', { src: u.id, dst: t.id, ability: ab.id, reason: 'dodge' });
@@ -881,9 +924,15 @@ export class Fight {
           const dot = (t.fx / fl) * (u.x - t.x) + (t.fy / fl) * (u.y - t.y);
           if (dot < -0.2) bonus *= ab.behindMult;
         }
+        const rage = trait(u.race, 'bloodrage');
+        if (rage && u.hp < u.base.maxHp * rage.below) bonus *= 1 + rage.damage;
         const atk = { ...u.base, power: this.stat(u, 'power'), spell: this.stat(u, 'spell') };
         const def = { ...t.base, armor: this.stat(t, 'armor') };
         const roll = rollDamage(this.combat, e.dmgType, e.base, e.scale, atk, def, bonus, t.typeMods[e.dmgType] ?? 1);
+        // Keen Eye: an elf's first strike of the fight always crits; Stoneblood: a dwarf shrugs off the first crit
+        if (!u.struck && trait(u.race, 'keenEye') && !roll.crit) { roll.dmg = Math.round(roll.dmg * u.base.critMult); roll.crit = true; }
+        u.struck = true;
+        if (roll.crit && !t.stoneUsed && trait(t.race, 'stoneblood')) { t.stoneUsed = true; roll.dmg = Math.round(roll.dmg / u.base.critMult); roll.crit = false; this.emit('trait', { unit: t.id, trait: 'stoneblood' }); }
         if (roll.crit) u.s.crits++;
         u.s.hits++;
         this.applyDamage(u, t, roll.dmg, roll.crit, e.dmgType, ab.id);
@@ -896,6 +945,7 @@ export class Fight {
       }
       case 'heal': {
         if (t.downedLeft > 0) return;
+        if (trait(t.race, 'ironframe') || (trait(t.race, 'unliving') && u.defId === 'cleric')) return;
         const amt = (e.base + e.scale * this.stat(u, 'spell')) * u.base.healPower * u.boostNext * this.stat(t, 'healTaken') * (0.95 + 0.1 * this.combat.next());
         const real = Math.min(t.base.maxHp - t.hp, amt);
         t.hp += real;
@@ -971,6 +1021,8 @@ export class Fight {
   }
 
   private addStatus(t: Unit, id: string, dur: number, src: Unit, stacks: number) {
+    if (id === 'poison' && t.team === 0 && this.syn.has('coldBlooded')) return;
+    if (id === 'burn' && src.team === 0 && t.team === 1 && this.syn.has('hellfire')) dur += this.syn.get('hellfire')!.params.burn;
     const def = STATUSES[id];
     if (def.flags?.some((f) => f === 'stun' || f === 'sleep' || f === 'root')) {
       // diminishing returns: full, half, quarter, then immune for 6 s
@@ -1025,6 +1077,8 @@ export class Fight {
   /** Reaching 0 HP: heroes are Downed (Hardcore bleed-out), everything else dies. */
   private kill(t: Unit, src: Unit | undefined, cause: string) {
     if (!t.alive) return;
+    // Lucky: once per delve, a halfling survives the blow at 1 HP
+    if (!t.traitSpent && trait(t.race, 'lucky') && cause !== 'expired') { t.traitSpent = true; t.hp = 1; this.emit('trait', { unit: t.id, trait: 'lucky' }); return; }
     if (t.kind === 'hero' && t.downedLeft <= 0 && cause !== 'expired') {
       t.hp = 0;
       t.downedLeft = 6;
@@ -1042,6 +1096,18 @@ export class Fight {
 
   private die(t: Unit, src: Unit | undefined, cause: string) {
     if (!t.alive) return;
+    // Unliving: once per delve, a revenant gets back up
+    const unliving = trait(t.race, 'unliving');
+    if (unliving && !t.traitSpent && cause !== 'left behind') {
+      t.traitSpent = true; t.downedLeft = 0; t.hp = Math.round(t.base.maxHp * unliving.revive);
+      t.statuses = t.statuses.filter((x) => x.id !== 'downed');
+      this.refreshTeams();
+      this.emit('trait', { unit: t.id, trait: 'unliving' });
+      return;
+    }
+    const spores = trait(t.race, 'sporeBurst');
+    if (spores) for (const e of this.enemiesOf(t)) if (this.dist(e, t) <= spores.radius) this.addStatus(e, 'poison', spores.dur, t, spores.stacks);
+    if (src && src.team === 0 && t.team === 1 && this.syn.has('warband')) for (const a of this.teamCache[0]) if (a !== src) this.gainEnergy(a, this.syn.get('warband')!.params.energy);
     t.alive = false;
     t.hp = 0;
     t.downedLeft = 0;
@@ -1073,7 +1139,7 @@ export class Fight {
   // ----- hazards -----
 
   private hazardAt(u: Unit) {
-    if (!u.alive || u.downedLeft > 0) return;
+    if (!u.alive || u.downedLeft > 0 || trait(u.race, 'aloft')) return;
     const c = Math.floor(u.y) * this.field.w + Math.floor(u.x);
     for (const hz of this.field.hazards) {
       if (!hz.cells.includes(c)) continue;
@@ -1254,7 +1320,7 @@ export class Fight {
       events: this.events,
       units: this.units.map((u) => ({
         id: u.id, name: u.name, team: u.team, kind: u.kind, defId: u.defId, alive: u.alive, downed: u.downedLeft > 0,
-        hp: Math.max(0, Math.round(u.hp)), maxHp: u.base.maxHp, energy: Math.round(u.energy), ...u.s,
+        hp: Math.max(0, Math.round(u.hp)), maxHp: u.base.maxHp, energy: Math.round(u.energy), traitSpent: u.traitSpent, ...u.s,
       })),
       carried: heroes.filter((u) => u.alive && u.downedLeft > 0).map((u) => u.id),
       died: heroes.filter((u) => !u.alive).map((u) => u.id),

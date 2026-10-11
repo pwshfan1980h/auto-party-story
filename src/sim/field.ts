@@ -21,6 +21,8 @@ export interface Field {
   attempt: number;
   fallback: boolean;
   nav: NavGrid;
+  /** The biome the room was cut from (for the renderer's look). */
+  biome?: string;
 }
 
 export interface FieldOptions {
@@ -42,9 +44,9 @@ export function generateField(opt: FieldOptions): Field {
   for (let attempt = 0; attempt < 30; attempt++) {
     const rng = stream(opt.seed, 'field', ...opt.key, attempt);
     const f = tryGenerate(opt, biome.erosion, biome.coverTypes, opt.hazardKinds ?? biome.hazards, rng);
-    if (f) return finish(f, attempt, false);
+    if (f) return finish(f, attempt, false, opt.biome);
   }
-  return finish(plainField(opt), 30, true);
+  return finish(plainField(opt), 30, true, opt.biome);
 }
 
 interface Draft { w: number; h: number; tiles: Uint8Array; cover: Cover[]; hazards: Hazard[]; spawns: Field['spawns'] }
@@ -153,8 +155,8 @@ function plainField(opt: FieldOptions): Draft {
   return { w, h, tiles, cover: [], hazards: [], spawns };
 }
 
-function finish(d: Draft, attempt: number, fallback: boolean): Field {
-  return { ...d, attempt, fallback, nav: buildNav(d.w, d.h, d.tiles, d.hazards) };
+function finish(d: Draft, attempt: number, fallback: boolean, biome?: string): Field {
+  return { ...d, attempt, fallback, nav: buildNav(d.w, d.h, d.tiles, d.hazards), biome };
 }
 
 // ---------------- nav grid + flow fields ----------------

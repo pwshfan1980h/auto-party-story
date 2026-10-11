@@ -1,7 +1,7 @@
 // The save file: one persistent Torchwatch per save (DESIGN §7b), kept in the browser.
 import namesJson from '../../data/names.json';
 import campJson from '../../data/camp.json';
-import { CLASSES, RACES, TIERS } from '../sim/data';
+import { CLASSES, PROGRESSION, RACES, TIERS } from '../sim/data';
 import { stream } from '../sim/rng';
 import { ZONE, type RosterHero } from '../sim/roster';
 import { ITEMS } from '../sim/data';
@@ -10,7 +10,6 @@ import type { RunResult } from '../sim/run';
 
 export const TIER_IDS = ['I', 'II', 'III'];
 export const BASE_CLASSES = Object.keys(CLASSES).filter((c) => !CLASSES[c].base);
-const HIRE_RACES = Object.keys(RACES);
 const SAVE_KEY = 'aps-save-v1';
 
 export interface Fallen { id: string; name: string; classId: string; raceId: string; level: number; run: number; tier: string; cause?: string }
@@ -38,6 +37,32 @@ export interface GameState {
   stash?: string[];
 }
 
+/** The Specialists a hero could train as now, and why not if they can't. */
+export function promotions(state: GameState, heroId: string): { options: string[]; blocked?: string } {
+  const h = state.roster.find((x) => x.hero.id === heroId);
+  if (!h) return { options: [] };
+  const options = Object.keys(CLASSES).filter((c) => CLASSES[c].base === h.hero.classId);
+  if (!options.length) return { options };
+  if (h.hero.level < PROGRESSION.promoteLevel) return { options, blocked: `Trains at level ${PROGRESSION.promoteLevel}.` };
+  if (!campEffect(state, 'academy')) return { options, blocked: 'Needs the Academy in Torchwatch.' };
+  return { options };
+}
+
+/** Train a hero as a Specialist (T2). Gear the new class can't use goes back to the stores. */
+export function promote(state: GameState, heroId: string, classId: string): string | null {
+  const h = state.roster.find((x) => x.hero.id === heroId);
+  if (!h) return 'No such hero.';
+  const p = promotions(state, heroId);
+  if (p.blocked) return p.blocked;
+  if (!p.options.includes(classId)) return `${h.hero.name} can't train as that.`;
+  const keep = (h.hero.items ?? []).filter((i) => canEquip(classId, i));
+  const back = (h.hero.items ?? []).filter((i) => !keep.includes(i));
+  state.stash = [...(state.stash ?? []), ...back];
+  h.hero = { ...h.hero, classId, zone: ZONE[classId] ?? h.hero.zone, items: keep };
+  saveGame(state);
+  return null;
+}
+
 /** Put an item from the stash on a hero (or take one off into the stash, with itemId null). */
 export function equip(state: GameState, heroId: string, slot: string, itemId: string | null): string | null {
   const h = state.roster.find((x) => x.hero.id === heroId);
@@ -59,7 +84,7 @@ export function equip(state: GameState, heroId: string, slot: string, itemId: st
   return null;
 }
 
-export interface CampUpgrade { name: string; cost: number; about: string; effect: { recovery?: number; torch?: number; recruitLevel?: number } }
+export interface CampUpgrade { name: string; cost: number; about: string; effect: { recovery?: number; torch?: number; recruitLevel?: number; academy?: number } }
 export const CAMP = (campJson as unknown as { upgrades: Record<string, CampUpgrade> }).upgrades;
 
 /** The sum of one effect across everything built. */
@@ -87,11 +112,27 @@ export function heroName(raceId: string, seed: string): string {
   return r.pick(parts.start) + r.pick(parts.middle) + r.pick(parts.end);
 }
 
+/** Has the company met this race yet (DESIGN §2: races arrive over time)? */
+export function raceMet(state: GameState, raceId: string): boolean {
+  const u = RACES[raceId]?.unlock;
+  if (!u) return false;
+  switch (u.kind) {
+    case 'start': return true;
+    case 'delves': return state.runs >= (u.n ?? 0);
+    case 'cleared': return state.unlocked > TIER_IDS.indexOf(u.tier ?? 'I');
+    case 'reached': return state.unlocked >= TIER_IDS.indexOf(u.tier ?? 'I');
+    case 'built': return (state.camp ?? []).length >= (u.n ?? 0);
+    case 'memorial': return state.memorial.length >= (u.n ?? 0);
+    default: return false;
+  }
+}
+export const metRaces = (state: GameState) => Object.keys(RACES).filter((r) => raceMet(state, r));
+
 /** A hireable hero. Race, class and looks come from the seed: the player only picks from the board. */
 export function candidate(state: GameState, level: number, classId?: string): RosterHero {
   const n = ++state.hired;
   const r = stream(state.seed, 'hire', n);
-  const raceId = r.pick(HIRE_RACES);
+  const raceId = r.pick(metRaces(state));
   const cls = classId ?? r.pick(BASE_CLASSES);
   const id = `h${state.seed.toString(36)}-${n}`;
   return {
