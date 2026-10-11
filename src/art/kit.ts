@@ -126,6 +126,24 @@ export class PartBuilder {
     }
     return this;
   }
+  /**
+   * A vertical limb from y0 to y1 with an elliptical cross-section that changes along its length:
+   * `prof(t)` gives [rx, rz, dz] at t = 0 (bottom) to 1 (top), so thighs taper and calves bulge.
+   */
+  taper(cx: number, cz: number, y0: number, y1: number, prof: (t: number) => [number, number, number], c: Color, texture = 0.08) {
+    const [ay] = this.span(Math.floor(y0)), [, by] = this.span(Math.ceil(y1));
+    for (let y = ay; y <= by; y++) {
+      const dy = this.d(y);
+      if (dy < y0 - 0.25 || dy > y1 + 0.25) continue;
+      const [rx, rz, dz] = prof(Math.min(1, Math.max(0, (dy - y0) / Math.max(0.01, y1 - y0))));
+      const [ax] = this.span(Math.floor(cx - rx)), [, bx] = this.span(Math.ceil(cx + rx));
+      const [az] = this.span(Math.floor(cz + dz - rz)), [, bz] = this.span(Math.ceil(cz + dz + rz));
+      for (let x = ax; x <= bx; x++) for (let z = az; z <= bz; z++) {
+        if (((this.d(x) - cx) / rx) ** 2 + ((this.d(z) - cz - dz) / rz) ** 2 <= 1) this.fineSet(x, y, z, c, texture);
+      }
+    }
+    return this;
+  }
   /** Line from point to point, `thick` design units wide. */
   line(x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, c: Color, thick = 1) {
     const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), Math.abs(z1 - z0), 1) * RES * 2;

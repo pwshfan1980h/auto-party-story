@@ -18,11 +18,15 @@ const RANK_SCALE: Record<string, number> = { minion: 0.72, normal: 1, veteran: 1
 function skeletonRig(): Rig {
   // human proportions: long shins, a ribcage, and a skull about a fifth of the height
   const legH = 11, torsoTop = 21, hw = 4, z0 = -2, z1 = 2, headY = 22, headTop = 28, hx = 3, hz0 = -3, hz1 = 3;
-  const f: Frame = { legH, torsoTop, hw, z0, z1, headY, headTop, hx, hz0, hz1, shoulderY: torsoTop, handY: 11, armX: 5 };
+  const f: Frame = { legH, kneeY: 6, ankleY: 1, lift: 0, torsoTop, hw, z0, z1, headY, headTop, hx, hz0, hz1, shoulderY: torsoTop, handY: 11, armX: 5 };
   const B = P.bone, S = P.boneShadow, D = P.boneDark;
   const legR = new PartBuilder('legR', [2, legH, 0]), legL = new PartBuilder('legL', [-2, legH, 0]);
-  for (const [leg, s] of [[legR, 1], [legL, -1]] as const) {
-    leg.box(s * 2, 1, 0, s * 2, legH - 1, 0, B).set(s * 2, 6, 1, S).set(s * 2, 5, 0, D).box(s * 1, 0, 0, s * 3, 0, 2, B);
+  const shinR = new PartBuilder('shinR', [2, 6, 0], 'legR'), shinL = new PartBuilder('shinL', [-2, 6, 0], 'legL');
+  const footR = new PartBuilder('footR', [2, 1, 0], 'shinR'), footL = new PartBuilder('footL', [-2, 1, 0], 'shinL');
+  for (const [leg, shin, foot, s] of [[legR, shinR, footR, 1], [legL, shinL, footL, -1]] as const) {
+    leg.box(s * 2, 6, 0, s * 2, legH - 1, 0, B).set(s * 2, 6, 1, S); // femur and knob of the knee
+    shin.box(s * 2, 1, 0, s * 2, 5, 0, B).set(s * 2, 5, 0, D);
+    foot.box(s * 1, 0, 0, s * 3, 0, 2, B).set(s * 2, 0, 2, S);
   }
   const torso = new PartBuilder('torso', [0, legH, 0]);
   torso.box(-2, legH, -1, 2, legH + 1, 1, S); // pelvis
@@ -45,7 +49,7 @@ function skeletonRig(): Rig {
   for (const s of [-1.5, 1.5]) head.ellipsoid(s, headY + 4, 3, 1, 1.1, 0.8, P.ink, 0).set(Math.round(s), headY + 4, 4, shade(P.glowCyan, 0.8));
   head.set(0, headY + 2, 3, P.ink);
   head.paint((_x, y, z) => z < -1 && y > headY + 4, S);
-  return { frame: f, legL, legR, torso, head, armL, armR, extras: [] };
+  return { frame: f, legL, legR, shinL, shinR, footL, footR, torso, head, armL, armR, extras: [] };
 }
 
 // ---------------- non-humanoid rigs ----------------
