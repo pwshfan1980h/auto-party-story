@@ -96,6 +96,8 @@ export class BattleReplay {
   private freeze = 0;
   private readonly blasts = new Set<string>();
   private torchDropped: THREE.Vector3 | null = null;
+  /** When the fight went into overtime: the torchlight shrinks as the dark closes in. */
+  private overtimeAt = -1;
   private readonly root = new THREE.Group();
   private readonly fight: Fight;
 
@@ -423,6 +425,11 @@ export class BattleReplay {
         if (u.voice) A?.voice(u.voice.race, u.voice.sex, words[e.call as string] ?? String(e.call), 'shout', this.panOf(e.leader));
         break;
       }
+      case 'overtime': {
+        this.overtimeAt = e.t;
+        this.banner('THE DARK CLOSES IN', 'Every blow lands harder now');
+        break;
+      }
       case 'end': {
         const r = e.result as string;
         A?.ending(r === 'victory');
@@ -512,8 +519,9 @@ export class BattleReplay {
     // the Leader carries the torch
     const L = this.setup.leader && this.units.get(this.setup.leader.heroId);
     const flicker = Math.sin(performance.now() / 90) * 0.25 + Math.sin(performance.now() / 37) * 0.15;
-    if (L && L.alive && !this.torchDropped) { const [x, y] = this.sample(L, this.t); this.scene.torch.position.copy(this.world(x, y, 1.3)); this.scene.setTorch(this.opts.torchFuel, flicker); }
-    else if (this.torchDropped) { this.scene.torch.position.copy(this.torchDropped); this.scene.setTorch(this.opts.torchFuel / 2, flicker); }
+    const dark = this.overtimeAt >= 0 ? Math.max(0.35, 1 - (this.t - this.overtimeAt) / 60) : 1;
+    if (L && L.alive && !this.torchDropped) { const [x, y] = this.sample(L, this.t); this.scene.torch.position.copy(this.world(x, y, 1.3)); this.scene.setTorch(this.opts.torchFuel * dark, flicker); }
+    else if (this.torchDropped) { this.scene.torch.position.copy(this.torchDropped); this.scene.setTorch((this.opts.torchFuel / 2) * dark, flicker); }
     // floating labels
     for (const el of this.overlay.querySelectorAll<HTMLElement & { __at?: THREE.Vector3; __t?: number }>('.fx-label:not(.banner)')) {
       el.__t = (el.__t ?? 0) + dtReal;

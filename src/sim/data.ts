@@ -166,7 +166,7 @@ export interface BaselineRow { hp: number; win: number; hpCost: number; deaths: 
 /** Measured by `npm run baselines`: tier → room → rows by entering party HP. */
 export const BASELINES = (baselinesJson as unknown as { table: Record<string, Record<string, BaselineRow[]>> }).table;
 
-export const DELVE = delveJson as unknown as { torch: { base: number; perFloor: number }; loot: Record<string, [number, number]> };
+export const DELVE = delveJson as unknown as { torch: { base: number; perFloor: number }; loot: Record<string, [number, number]>; overtime: { start: number; per10s: number } };
 
 export interface WeaponDef { parry: number; block: number; disarm: number; natural?: boolean }
 export interface ShieldDef { block: number; missiles: boolean; move?: number }

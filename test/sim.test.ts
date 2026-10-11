@@ -150,3 +150,27 @@ describe('race traits and synergies', () => {
     expect(risen).toBeGreaterThan(0);
   });
 });
+
+describe('robust auto-battling', () => {
+  it('random parties from every class and race never crash, time out, idle or stack', async () => {
+    const { robustSweep } = await import('../tools/robust');
+    const r = robustSweep(3, ['I', 'II', 'III']);
+    expect(r.crashes).toBe(0);
+    expect(r.timeouts).toBe(0);
+    expect(r.badPos).toBe(0);
+    expect(r.idleSeconds).toBeLessThan(1);
+    expect(r.overlapSeconds).toBeLessThan(1);
+  });
+
+  it('long fights go into overtime and still end', () => {
+    let long = 0;
+    for (let s = 0; s < 40 && long < 2; s++) {
+      const r = runFight({ seed: s, tier: 'III', roomType: 'boss', heroes: party(PRESETS.starter, 'III'), monsters: buildEncounter('III', 'boss', 9, stream(s, 'ot')), mode: 'full' });
+      if (r.duration <= 90) continue;
+      long++;
+      expect(r.events.some((e) => e.type === 'overtime')).toBe(true);
+      expect(r.result).not.toBe('timeout');
+    }
+    expect(long).toBeGreaterThan(0);
+  });
+});
