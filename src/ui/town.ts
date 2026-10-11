@@ -3,8 +3,8 @@ import { CLASSES, RACES, TIERS } from '../sim/data';
 import { leaderProfile, type Doctrine } from '../sim/leader';
 import { xpToNext, type RosterHero } from '../sim/roster';
 import { hire, partySizeFor, planProblem, rest, type DelvePlan } from '../game/expedition';
-import { build, CAMP, equip, hireCost, TIER_IDS, type GameState } from '../game/state';
-import { ITEMS } from '../sim/data';
+import { build, CAMP, equip, hireCost, promote, promotions, raceMet, TIER_IDS, type GameState } from '../game/state';
+import { ABILITIES, ITEMS } from '../sim/data';
 import { canEquip, SLOTS } from '../sim/items';
 
 const STAT_LABEL: Record<string, string> = { power: 'power', spell: 'spell', armor: 'armour', maxHp: 'HP', crit: 'crit', evasion: 'evasion', parry: 'parry', block: 'block', move: 'speed', healPower: 'healing', energyGain: 'energy' };
@@ -31,6 +31,7 @@ export class Town {
   private plan: DelvePlan;
   private abandonArmed = false;
   private gearOpen: string | null = null;
+  private trainOpen: string | null = null;
 
   constructor(private readonly root: HTMLElement, private state: GameState, private readonly on: TownHandlers) {
     const tier = TIER_IDS[state.unlocked];
@@ -91,7 +92,8 @@ export class Town {
           s.roster.length && s.roster.every((h) => h.benched > 0) ? el('button', { type: 'button', onclick: () => { rest(s); this.autoPick(); this.render(); } }, 'Rest a while (everyone recovers a little)') : null),
           el('section', { class: 'panel board', 'aria-label': 'Hire board' },
             el('h2', {}, 'Hire board'),
-            el('div', { class: 'cards' }, ...s.hireBoard.map((h) => this.hireCard(h)))))),
+            el('div', { class: 'cards' }, ...s.hireBoard.map((h) => this.hireCard(h))),
+            this.racesNote()))),
     );
   }
 
@@ -145,8 +147,25 @@ export class Town {
       el('div', { class: 'acts' },
         el('button', { type: 'button', 'aria-pressed': String(inParty), disabled: resting || (!inParty && full), onclick: toggle }, inParty ? 'Going' : 'Take'),
         el('button', { type: 'button', 'aria-pressed': String(this.plan.leaderId === id), disabled: !inParty, title: 'Carries the torch and makes the calls', onclick: () => { this.plan.leaderId = id; this.render(); } }, 'Lead'),
-        el('button', { type: 'button', 'aria-pressed': String(this.gearOpen === id), onclick: () => { this.gearOpen = this.gearOpen === id ? null : id; this.render(); } }, 'Gear')),
-      this.gearOpen === id ? this.gearEditor(h) : null);
+        el('button', { type: 'button', 'aria-pressed': String(this.gearOpen === id), onclick: () => { this.gearOpen = this.gearOpen === id ? null : id; this.render(); } }, 'Gear'),
+        promotions(this.state, id).options.length ? el('button', { type: 'button', 'aria-pressed': String(this.trainOpen === id), onclick: () => { this.trainOpen = this.trainOpen === id ? null : id; this.render(); } }, 'Train') : null),
+      this.gearOpen === id ? this.gearEditor(h) : null,
+      this.trainOpen === id ? this.trainer(h) : null);
+  }
+
+  /** The Specialists a hero can train as: what each brings, and the choice itself. */
+  private trainer(h: RosterHero) {
+    const { options, blocked } = promotions(this.state, h.hero.id);
+    const ab = (id: string) => ABILITIES[id]?.name ?? id;
+    return el('div', { class: 'gear-edit' },
+      blocked ? el('span', { class: 'warn' }, blocked) : el('span', { class: 'muted' }, 'Training is for good: choose carefully.'),
+      ...options.map((c) => {
+        const k = CLASSES[c];
+        const roles = Object.entries(k.roles).sort((a, b) => (b[1] ?? 0) - (a[1] ?? 0)).slice(0, 2).map(([r]) => r).join(' and ');
+        return el('div', { class: 'build' },
+          el('strong', {}, k.name), el('span', { class: 'muted' }, `${roles}. Skills: ${k.skills.map(ab).join(', ')}. Ultimate: ${ab(k.ult)}.`),
+          el('button', { type: 'button', disabled: !!blocked, onclick: () => { if (!promote(this.state, h.hero.id, c)) { this.trainOpen = null; this.render(); } } }, `Train as ${k.name}`));
+      }));
   }
 
   /** One select per slot: what's worn, or anything in the stores this hero can use. */
@@ -162,6 +181,16 @@ export class Town {
           worn ? el('option', { value: worn, selected: true, disabled: true }, ITEMS[worn].name) : null,
           ...options.map((i) => el('option', { value: i }, `${ITEMS[i].name} (${describe(i)})`))));
     }), stash.length ? null : el('span', { class: 'muted' }, 'The stores are empty. Delves turn up gear.'));
+  }
+
+  /** Who comes to the Inn: races met, and hints at the ones still to meet. */
+  private racesNote() {
+    const met = Object.keys(RACES).filter((r) => raceMet(this.state, r));
+    const unmet = Object.keys(RACES).filter((r) => !raceMet(this.state, r));
+    return el('details', { class: 'races' },
+      el('summary', {}, `Peoples met: ${met.length} of ${Object.keys(RACES).length}`),
+      el('ul', {}, ...met.map((r) => el('li', {}, el('strong', {}, RACES[r].name), ` · ${RACES[r].trait.name}: ${RACES[r].trait.about} Two or more: ${RACES[r].synergy.name}, ${RACES[r].synergy.about}`))),
+      unmet.length ? el('ul', { class: 'muted' }, ...unmet.map((r) => el('li', {}, `${RACES[r].name}: ${RACES[r].unlock.hint ?? 'not yet met'}`))) : null);
   }
 
   private hireCard(h: RosterHero) {

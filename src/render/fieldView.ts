@@ -9,6 +9,11 @@ import { meshVoxels } from './voxmesh';
 import { unitMaterial, VOXEL } from './unitView';
 
 const T = 32; // design units per tile (the kit's design scale)
+/** Each biome's stone: flagstones in the crypt, damp green-brown rock and moss in the caverns. */
+const BIOME_LOOK: Record<string, { stone: number; alt: number; altChance: number; mortar: number; cliff: number; cliffDark: number; specks?: number[] }> = {
+  crypt: { stone: 0x5e5a6e, alt: 0x4e4a5c, altChance: 0.08, mortar: 0x2a2632, cliff: 0x3a2e34, cliffDark: 0x30262c },
+  fungal: { stone: 0x4c5446, alt: 0x3e5a36, altChance: 0.22, mortar: 0x1c221c, cliff: 0x2a3026, cliffDark: 0x222820, specks: [0x7ae8ff, 0xb08aff, 0x9ef07a] },
+};
 /** Floor stone under each kind of ground hazard. */
 const HAZARD_FLOOR: Record<string, number> = { spore_vent: 0x4a5a3a, spikes: 0x5a4848, fire: 0x4a2418, acid: 0x3e5a24, miasma_pit: 0x3a4430 };
 
@@ -28,6 +33,7 @@ function mesh(p: PartBuilder, at: [number, number, number]): THREE.Mesh {
 
 /** Flagstone floor: 2×2 stones per tile, mortar lines, cracks, and dark cliffs where the room falls away. */
 function floor(f: Field, seed: number): THREE.Mesh {
+  const look = BIOME_LOOK[f.biome ?? 'crypt'] ?? BIOME_LOOK.crypt;
   const rng = stream(seed, 'floor-look');
   const solid = (x: number, y: number) => x >= 0 && y >= 0 && x < f.w && y < f.h && f.tiles[y * f.w + x] !== 0;
   const pos: number[] = [], nor: number[] = [], col: number[] = [];
@@ -43,7 +49,7 @@ function floor(f: Field, seed: number): THREE.Mesh {
     for (let sy = 0; sy < 2; sy++) for (let sx = 0; sx < 2; sx++) {
       // one stone: a raised slab with a 1-voxel mortar gap around it
       const tint = 0.82 + rng.next() * 0.3;
-      const base = hazard ? (HAZARD_FLOOR[hazard.kind] ?? 0x5a4848) : rng.chance(0.08) ? 0x4e4a5c : 0x5e5a6e;
+      const base = hazard ? (HAZARD_FLOOR[hazard.kind] ?? 0x5a4848) : rng.chance(look.altChance) ? look.alt : look.stone;
       const c = shade(base, tint);
       const x0 = tx * T + sx * 16 + 1, z0 = ty * T + sy * 16 + 1, x1 = x0 + 14, z1 = z0 + 14;
       const y = rng.chance(0.15) ? top - 1 : top;
@@ -55,13 +61,13 @@ function floor(f: Field, seed: number): THREE.Mesh {
     }
     // mortar bed under the stones
     const mx0 = tx * T, mz0 = ty * T, mx1 = mx0 + T, mz1 = mz0 + T;
-    quad([mx0, mortar, mz0], [mx0, mortar, mz1], [mx1, mortar, mz1], [mx1, mortar, mz0], [0, 1, 0], 0x2a2632, 1);
+    quad([mx0, mortar, mz0], [mx0, mortar, mz1], [mx1, mortar, mz1], [mx1, mortar, mz0], [0, 1, 0], look.mortar, 1);
     // cliff faces where the room falls away
     const drop = -18;
-    if (!solid(tx, ty + 1)) quad([mx0, mortar, mz1], [mx0, drop, mz1], [mx1, drop, mz1], [mx1, mortar, mz1], [0, 0, 1], 0x3a2e34, 0.8);
-    if (!solid(tx + 1, ty)) quad([mx1, mortar, mz0], [mx1, mortar, mz1], [mx1, drop, mz1], [mx1, drop, mz0], [1, 0, 0], 0x3a2e34, 0.9);
-    if (!solid(tx, ty - 1)) quad([mx0, drop, mz0], [mx0, mortar, mz0], [mx1, mortar, mz0], [mx1, drop, mz0], [0, 0, -1], 0x30262c, 0.7);
-    if (!solid(tx - 1, ty)) quad([mx0, drop, mz0], [mx0, drop, mz1], [mx0, mortar, mz1], [mx0, mortar, mz0], [-1, 0, 0], 0x30262c, 0.78);
+    if (!solid(tx, ty + 1)) quad([mx0, mortar, mz1], [mx0, drop, mz1], [mx1, drop, mz1], [mx1, mortar, mz1], [0, 0, 1], look.cliff, 0.8);
+    if (!solid(tx + 1, ty)) quad([mx1, mortar, mz0], [mx1, mortar, mz1], [mx1, drop, mz1], [mx1, drop, mz0], [1, 0, 0], look.cliff, 0.9);
+    if (!solid(tx, ty - 1)) quad([mx0, drop, mz0], [mx0, mortar, mz0], [mx1, mortar, mz0], [mx1, drop, mz0], [0, 0, -1], look.cliffDark, 0.7);
+    if (!solid(tx - 1, ty)) quad([mx0, drop, mz0], [mx0, drop, mz1], [mx0, mortar, mz1], [mx0, mortar, mz0], [-1, 0, 0], look.cliffDark, 0.78);
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -162,6 +168,32 @@ export function buildField(f: Field, seed: number): FieldView {
     if (f.tiles[ty * f.w + tx] !== 1) continue;
     const [x, z] = tileToWorld(f, tx + rng.next(), ty + rng.next());
     group.add(mesh(boneScatter(rng), [x, 0, z]));
+  }
+  const look = BIOME_LOOK[f.biome ?? 'crypt'];
+  if (look?.specks) {
+    // glowing fungus: unlit specks that read in the dark, and a dim light from the first crystal clusters
+    const specks = new THREE.Group();
+    const mats = look.specks.map((c) => new THREE.MeshBasicMaterial({ color: c }));
+    const geo = new THREE.BoxGeometry(0.035, 0.02, 0.035);
+    for (let i = 0; i < 26; i++) {
+      const tx = rng.int(f.w), ty = rng.int(f.h);
+      if (f.tiles[ty * f.w + tx] !== 1) continue;
+      const [x, z] = tileToWorld(f, tx + rng.next(), ty + rng.next());
+      for (let k = 0; k < 3; k++) {
+        const m = new THREE.Mesh(geo, mats[(i + k) % mats.length]);
+        m.position.set(x + (rng.next() - 0.5) * 0.18, 0.01, z + (rng.next() - 0.5) * 0.18);
+        specks.add(m);
+      }
+    }
+    group.add(specks);
+    let lights = 0;
+    for (const c of f.cover) if (c.type === 'crystal_cluster' && lights < 2) {
+      const [x, z] = tileToWorld(f, c.x + 0.5, c.y + 0.5);
+      const l = new THREE.PointLight(lights ? 0xb08aff : 0x7ae8ff, 0.9, 3.5, 1.6);
+      l.position.set(x, 0.7, z);
+      group.add(l);
+      lights++;
+    }
   }
   void NAV; void unkey;
   return { group, fires: [] };

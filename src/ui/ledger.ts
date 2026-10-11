@@ -1,6 +1,6 @@
 // The Delve Ledger: what was gained and lost, room by room, before heading back to Torchwatch.
 import type { DelveOutcome } from '../game/expedition';
-import { CLASSES, ITEMS } from '../sim/data';
+import { CLASSES, ITEMS, RACES } from '../sim/data';
 import { clear, el } from './dom';
 
 const OUTCOME: Record<string, [string, string]> = {
@@ -19,6 +19,7 @@ export function renderLedger(root: HTMLElement, out: DelveOutcome, onBack: () =>
     el('main', { class: 'ledger' },
       el('header', {}, el('h1', { class: r.outcome }, title), el('p', {}, line), note ? el('p', { class: 'warn' }, note) : null,
         out.unlockedTier ? el('p', { class: 'gain big' }, `Tier ${out.unlockedTier} is open.`) : null,
+        out.newRaces ? el('p', { class: 'gain big' }, `New faces at the Inn: ${out.newRaces.map((r) => RACES[r].name).join(', ')}.`) : null,
         out.volunteers ? el('p', { class: 'gain' }, `Word reaches the Inn. ${out.volunteers.join(', ')} step${out.volunteers.length > 1 ? '' : 's'} forward to carry the torch, asking nothing.`) : null),
       el('section', { class: 'panel' },
         el('h2', {}, 'The party'),

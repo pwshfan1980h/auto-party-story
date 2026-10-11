@@ -52,6 +52,10 @@ export function rollLook(race: string, seed: number | string, sex?: Sex): Look {
 /** Body landmarks the outfits and weapons attach to. */
 export interface Frame {
   legH: number;
+  kneeY: number;
+  ankleY: number;
+  /** Height of the soles off the ground (floating races). */
+  lift: number;
   torsoTop: number;
   hw: number;
   z0: number;
@@ -68,8 +72,13 @@ export interface Frame {
 
 export interface Rig {
   frame: Frame;
+  /** Thighs (pivot at the hip), shins (knee) and feet (ankle). */
   legL: PartBuilder;
   legR: PartBuilder;
+  shinL: PartBuilder;
+  shinR: PartBuilder;
+  footL: PartBuilder;
+  footR: PartBuilder;
   torso: PartBuilder;
   head: PartBuilder;
   armL: PartBuilder;
@@ -99,17 +108,36 @@ export function buildBody(look: Look): Rig {
   const armX = hw + 1;
   const shoulderY = torsoTop;
   const handY = Math.max(lift + 1, shoulderY - spec.arm + 1);
-  const f: Frame = { legH, torsoTop, hw, z0, z1, headY, headTop, hx, hz0, hz1, shoulderY, handY, armX };
+  const f: Frame = { legH, kneeY: 0, ankleY: 0, lift, torsoTop, hw, z0, z1, headY, headTop, hx, hz0, hz1, shoulderY, handY, armX };
   const skin = look.skin, skinDark = shade(skin, 0.8);
 
-  // legs (pivot at the hip)
+  // legs: thigh (pivot at the hip), shin (at the knee) and foot (at the ankle), shaped rather than boxed
   const legW = Math.max(1, Math.min(3, hw - 1));
-  const legR = new PartBuilder('legR', [Math.ceil(legW / 2), legH, 0]);
-  const legL = new PartBuilder('legL', [-Math.ceil(legW / 2), legH, 0]);
-  for (const [leg, side] of [[legR, 1], [legL, -1]] as const) {
-    const xa = side > 0 ? 1 : -legW, xb = side > 0 ? legW : -1;
-    leg.box(xa, lift, z0 + 1, xb, legH - 1, Math.max(z0 + 1, z1 - 1), skinDark);
-  }
+  const ankleY = lift + (legH - lift > 5 ? 2 : 1);
+  const kneeY = ankleY + Math.max(1, Math.round((legH - ankleY) * 0.48));
+  const rx = legW / 2 + 0.15, rz = Math.max(1, (z1 - z0 - 1) / 2), cz = (z0 + z1) / 2;
+  const bigFeet = feats.has('bareFeet');
+  const toe = Math.max(1.5, rz + 1.2) + (bigFeet ? 1 : 0), heel = rz * 0.75;
+  const legParts = ([1, -1] as const).map((side) => {
+    const n = side > 0 ? 'R' : 'L', cx = side * (legW + 1) / 2;
+    const thigh = new PartBuilder(`leg${n}`, [cx, legH, cz]);
+    thigh.taper(cx, cz, kneeY, legH + 0.5, (t) => [rx * (0.82 + 0.18 * t), rz * (0.86 + 0.2 * t), 0], skinDark);
+    thigh.ellipsoid(cx, kneeY, cz, rx * 0.84, 0.9, rz * 0.88, skinDark);
+    const shin = new PartBuilder(`shin${n}`, [cx, kneeY, cz], `leg${n}`);
+    // the calf swells just below the knee, then thins to the ankle
+    shin.taper(cx, cz, ankleY, kneeY + 0.3, (t) => {
+      const calf = Math.sin(Math.PI * Math.min(1, t * 1.25));
+      return [rx * (0.62 + 0.22 * t), rz * (0.66 + 0.24 * calf), -0.3 * calf];
+    }, skinDark);
+    shin.ellipsoid(cx, kneeY - 0.2, cz + rz * 0.7, rx * 0.6, 0.7, 0.55, skinDark); // kneecap
+    const foot = new PartBuilder(`foot${n}`, [cx, ankleY, cz], `shin${n}`);
+    // a sole that runs from heel to toe, the instep sloping up into the ankle
+    foot.rounded(cx, lift + 0.4, cz + (toe - heel) / 2, rx * (bigFeet ? 1.15 : 0.95), 0.95, (toe + heel) / 2, skinDark, 0.06);
+    foot.ellipsoid(cx, ankleY - 0.4, cz + 0.2, rx * 0.72, Math.max(0.8, ankleY - lift - 0.2), rz * 0.8, skinDark);
+    return { thigh, shin, foot };
+  });
+  const [{ thigh: legR, shin: shinR, foot: footR }, { thigh: legL, shin: shinL, foot: footL }] = legParts;
+  f.kneeY = kneeY; f.ankleY = ankleY;
 
   // torso
   const torso = new PartBuilder('torso', [0, legH, 0]);
@@ -216,7 +244,7 @@ export function buildBody(look: Look): Rig {
   if (look.detail === 'eyepatch') { head.box(ex - 1, eyeY, hz1, ex + 1, eyeY + 1, hz1, P.ink, 0); head.line(-hx, eyeY + 2, hz1, hx, eyeY + 1, hz1, P.ink); }
   if (look.detail === 'earring') head.set(hx + 1, eyeY - 2, 0, P.gold);
   if (look.detail === 'scarf') torso.box(-hw, torsoTop, z0 - 1, hw, torsoTop, z1 + 1, look.accent).box(hw - 2, torsoTop - 3, z1 + 1, hw - 1, torsoTop - 1, z1 + 1, look.accent);
-  return { frame: f, legL, legR, torso, head, armL, armR, extras };
+  return { frame: f, legL, legR, shinL, shinR, footL, footR, torso, head, armL, armR, extras };
 }
 
 function hair(head: PartBuilder, look: Look, f: Frame) {
@@ -254,31 +282,36 @@ export type Outfit = 'fighter' | 'rogue' | 'cleric' | 'mage' | 'ranger' | 'bard'
   | 'rags' | 'cultist' | 'robber' | 'zombie' | 'none';
 
 function dress(rig: Rig, shirt: Color, pants: Color, boots: Color, look?: Look) {
-  const { frame: f, torso, legL, legR, armL, armR } = rig;
+  const { frame: f, torso, armL, armR } = rig;
   torso.paint(() => true, shirt);
   torso.paint((_x, y) => y === f.legH, shade(pants, 0.85));
-  for (const leg of [legL, legR]) {
-    leg.paint(() => true, pants);
-    leg.paint((_x, y) => y <= Math.min(f.legH - 1, (f.legH > 4 ? 1 : 0) + (RACE_BODIES[look?.race ?? 'human']?.features.includes('float') ? 3 : 0)), boots);
-  }
-  if (!look || !RACE_BODIES[look.race]?.features.includes('bareFeet')) {
-    legR.box(1, 0, f.z1, Math.max(1, f.hw - 2), 0, f.z1, boots);
-    legL.box(-Math.max(1, f.hw - 2), 0, f.z1, -1, 0, f.z1, boots);
-  } else {
-    legR.paint((_x, y) => y === 0, look.skin);
-    legL.paint((_x, y) => y === 0, look.skin);
+  for (const leg of [rig.legL, rig.legR, rig.shinL, rig.shinR]) leg.paint(() => true, pants);
+  const bare = look && RACE_BODIES[look.race]?.features.includes('bareFeet');
+  for (const [shin, foot] of [[rig.shinL, rig.footL], [rig.shinR, rig.footR]]) {
+    if (bare) {
+      // big bare feet, furred on top
+      foot.paint(() => true, look.skin);
+      foot.paint((_x, y) => y > f.lift, look.hair ?? shade(look.skin, 0.8));
+      shin.paint((_x, y) => y <= f.ankleY, look.skin);
+      continue;
+    }
+    // boots with a turned-down cuff and a dark sole
+    foot.paint(() => true, boots);
+    foot.finePaint((_x, y) => y === f.lift * RES, shade(boots, 0.6));
+    shin.paint((_x, y) => y <= f.ankleY + 1, boots);
+    shin.paint((_x, y) => y === f.ankleY + 2 && f.kneeY - f.ankleY > 3, shade(boots, 1.2));
   }
   for (const arm of [armL, armR]) arm.paint((_x, y) => y > f.handY + 1, shirt);
 }
 
 function robe(rig: Rig, body: Color, trim: Color) {
-  const { frame: f, torso, legL, legR, armL, armR } = rig;
+  const { frame: f, torso, armL, armR } = rig;
   torso.paint(() => true, body);
   // the robe skirt hangs from the torso down to the ankles
   torso.rbox(-f.hw, 1, f.z0, f.hw, f.legH - 1, f.z1, body);
   torso.box(-f.hw - 1, 1, f.z0, f.hw + 1, 2, f.z1 + 1, shade(body, 0.85));
   torso.paint((x, y, z) => (z === f.z1 && Math.abs(x) <= 0) || y === 1, trim);
-  for (const leg of [legL, legR]) leg.paint(() => true, P.leatherDark);
+  for (const leg of [rig.legL, rig.legR, rig.shinL, rig.shinR, rig.footL, rig.footR]) leg.paint(() => true, P.leatherDark);
   for (const arm of [armL, armR]) arm.paint((_x, y) => y > f.handY + 1, body);
 }
 
@@ -509,12 +542,14 @@ export function clothe(rig: Rig, outfit: Outfit, look: Look) {
 }
 
 export function assemble(id: string, rig: Rig, style: Model['style'], scale = 1): Model {
-  const parts: Part[] = [rig.legL, rig.legR, rig.torso, rig.head, rig.armL, rig.armR, ...rig.extras].map((p) => p.build());
+  const parts: Part[] = [rig.legL, rig.legR, rig.shinL, rig.shinR, rig.footL, rig.footR, rig.torso, rig.head, rig.armL, rig.armR, ...rig.extras].map((p) => p.build());
   return { id, rig: 'biped', parts, scale, height: modelHeight(parts), style };
 }
 
 /** Classes → outfit and gear. */
-export const CLASS_LOOK: Record<string, { outfit: Outfit; gear: Gear; style: Model['style'] }> = {
+/** Specialists (T2) read at a glance: the base outfit plus a mark of rank in the class's colour. */
+export type Mark = { kind: 'mantle' | 'pauldrons'; color: Color };
+export const CLASS_LOOK: Record<string, { outfit: Outfit; gear: Gear; style: Model['style']; mark?: Mark }> = {
   fighter: { outfit: 'fighter', gear: 'swordShield', style: 'melee' },
   rogue: { outfit: 'rogue', gear: 'daggers', style: 'melee' },
   cleric: { outfit: 'cleric', gear: 'mace', style: 'caster' },
@@ -523,11 +558,34 @@ export const CLASS_LOOK: Record<string, { outfit: Outfit; gear: Gear; style: Mod
   bard: { outfit: 'bard', gear: 'lute', style: 'caster' },
   alchemist: { outfit: 'alchemist', gear: 'flask', style: 'ranged' },
   necromancer: { outfit: 'necromancer', gear: 'skullStaff', style: 'caster' },
-  knight: { outfit: 'fighter', gear: 'swordShield', style: 'melee' },
-  berserker: { outfit: 'fighter', gear: 'bigClub', style: 'melee' },
-  sniper: { outfit: 'ranger', gear: 'bow', style: 'ranged' },
-  assassin: { outfit: 'rogue', gear: 'daggers', style: 'melee' },
+  knight: { outfit: 'fighter', gear: 'swordShield', style: 'melee', mark: { kind: 'pauldrons', color: P.steelLight } },
+  berserker: { outfit: 'fighter', gear: 'bigClub', style: 'melee', mark: { kind: 'mantle', color: 0x6a4a30 } },
+  sniper: { outfit: 'ranger', gear: 'bow', style: 'ranged', mark: { kind: 'mantle', color: P.greenDark } },
+  assassin: { outfit: 'rogue', gear: 'daggers', style: 'melee', mark: { kind: 'mantle', color: P.black } },
+  trickster: { outfit: 'rogue', gear: 'daggers', style: 'melee', mark: { kind: 'mantle', color: P.purple } },
+  beastmaster: { outfit: 'ranger', gear: 'bow', style: 'ranged', mark: { kind: 'mantle', color: 0x8a8478 } },
+  priest: { outfit: 'cleric', gear: 'mace', style: 'caster', mark: { kind: 'mantle', color: P.gold } },
+  inquisitor: { outfit: 'cleric', gear: 'mace', style: 'melee', mark: { kind: 'pauldrons', color: P.redDark } },
+  elementalist: { outfit: 'mage', gear: 'staff', style: 'caster', mark: { kind: 'mantle', color: P.blue } },
+  chronomancer: { outfit: 'mage', gear: 'staff', style: 'caster', mark: { kind: 'pauldrons', color: P.bronze } },
+  skald: { outfit: 'bard', gear: 'bigClub', style: 'melee', mark: { kind: 'pauldrons', color: P.iron } },
+  minstrel: { outfit: 'bard', gear: 'lute', style: 'caster', mark: { kind: 'mantle', color: P.teal } },
+  grenadier: { outfit: 'alchemist', gear: 'flask', style: 'ranged', mark: { kind: 'pauldrons', color: P.leatherDark } },
+  apothecary: { outfit: 'alchemist', gear: 'flask', style: 'ranged', mark: { kind: 'mantle', color: P.green } },
+  lich: { outfit: 'necromancer', gear: 'skullStaff', style: 'caster', mark: { kind: 'mantle', color: 0x2a1a3a } },
+  bonecaller: { outfit: 'necromancer', gear: 'skullStaff', style: 'caster', mark: { kind: 'pauldrons', color: P.bone } },
 };
+
+/** A Specialist's mark: a cape down the back, or shoulder plates. */
+function mark(rig: Rig, m: Mark) {
+  const { frame: f, torso } = rig;
+  if (m.kind === 'mantle') {
+    torso.box(-f.hw, Math.max(1, f.legH - 3), f.z0 - 1, f.hw, f.torsoTop, f.z0 - 1, m.color, 0.1);
+    torso.box(-f.hw - 1, f.torsoTop - 1, f.z0 - 1, f.hw + 1, f.torsoTop, f.z1, shade(m.color, 1.1));
+  } else {
+    for (const sx of [-1, 1]) torso.rounded(sx * (f.hw + 0.5), f.torsoTop - 0.5, (f.z0 + f.z1) / 2, 2, 1.6, (f.z1 - f.z0) / 2 + 1, m.color, 0.08);
+  }
+}
 
 /** A hero model: race body + class outfit, varied by the hero's look. */
 const COVERED: ReadonlySet<Outfit> = new Set(['fighter', 'rogue', 'cleric', 'ranger', 'necromancer', 'cultist', 'robber']);
@@ -537,6 +595,7 @@ export function heroModel(classId: string, look: Look, id = `hero:${classId}:${l
   const rig = buildBody(COVERED.has(cl.outfit) ? { ...look, hairStyle: 'bald' } : look);
   clothe(rig, cl.outfit, look);
   equip(rig, cl.gear, look.accent);
+  if (cl.mark) mark(rig, cl.mark);
   if (look.detail === 'feather' && cl.outfit !== 'bard') rig.head.line(rig.frame.hx, rig.frame.headTop, -1, rig.frame.hx + 2, rig.frame.headTop + 4, -3, look.accent);
   return assemble(id, rig, cl.style);
 }

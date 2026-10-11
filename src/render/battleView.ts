@@ -477,7 +477,11 @@ export class BattleReplay {
       let anim: Anim = u.feared ? (moving ? 'walk' : 'cower') : moving ? 'walk' : 'ready', prog = 0;
       if (u.downed) anim = 'downed';
       else if (u.anim && this.t - u.animStart < u.animDur) { anim = u.anim; prog = (this.t - u.animStart) / u.animDur; }
-      u.view.pose(anim, this.t, prog);
+      // stride speed in tiles per second, negative when backing away (kiters keep their eyes on the foe)
+      const ahead = this.world(x2, y2).sub(p);
+      const fwd = ahead.x * Math.sin(u.yaw) + ahead.z * Math.cos(u.yaw);
+      const speed = (ahead.length() / 0.12) * (fwd < -0.3 * ahead.length() ? -1 : 1);
+      u.view.pose(anim, this.t, prog, speed);
       // hurt posture: lean in proportion to wounds
       const hpR = hp / u.maxHp;
       if (!u.downed && hpR < 0.5) { const torso = u.view.parts.get('torso'); if (torso) torso.rotation.x += 0.35 * (1 - hpR); }

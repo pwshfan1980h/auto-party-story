@@ -5,10 +5,10 @@ import type { Doctrine } from '../sim/leader';
 import { hash32 } from '../sim/rng';
 import { applyRun, type RunAftermath } from '../sim/roster';
 import { delveSteps, runRun, type DelveAnswer, type DelveRequest, type RunResult, type RunSetup } from '../sim/run';
-import { campEffect, candidate, hireCost, refreshBoard, saveGame, TIER_IDS, type GameState } from './state';
+import { campEffect, candidate, hireCost, metRaces, refreshBoard, saveGame, TIER_IDS, type GameState } from './state';
 
 export interface DelvePlan { partyIds: string[]; leaderId: string; tier: string; doctrine: Doctrine; fromWaystone: boolean }
-export interface DelveOutcome { result: RunResult; aftermath: RunAftermath; unlockedTier?: string; names: Record<string, string>; classes: Record<string, string>; volunteers?: string[] }
+export interface DelveOutcome { result: RunResult; aftermath: RunAftermath; unlockedTier?: string; names: Record<string, string>; classes: Record<string, string>; volunteers?: string[]; newRaces?: string[] }
 
 export function partySizeFor(tier: string) { return TIERS[tier].partySize; }
 
@@ -69,6 +69,7 @@ export function settleDelve(state: GameState, plan: DelvePlan, result: RunResult
   const leader = party.find((h) => h.hero.id === plan.leaderId)!;
   const names = Object.fromEntries(party.map((h) => [h.hero.id, h.hero.name]));
   const classes = Object.fromEntries(party.map((h) => [h.hero.id, h.hero.classId]));
+  const metBefore = new Set(metRaces(state));
   const aftermath = applyRun(state.roster, party, leader, result, plan.tier, 2 + campEffect(state, 'recovery'));
   for (const id of aftermath.died) {
     const h = state.roster.find((x) => x.hero.id === id)!;
@@ -89,10 +90,11 @@ export function settleDelve(state: GameState, plan: DelvePlan, result: RunResult
   state.history.unshift({ run: state.runs, tier: plan.tier, outcome: result.outcome, banked: result.banked, floors: result.floorsReached, died: aftermath.died.map((id) => names[id]), levelled: aftermath.levelled.length });
   state.history = state.history.slice(0, 30);
   delete state.pending;
+  const newRaces = metRaces(state).filter((r) => !metBefore.has(r));
   refreshBoard(state);
   const volunteers = assist(state);
   saveGame(state);
-  return { result, aftermath, unlockedTier, names, classes, volunteers: volunteers.length ? volunteers : undefined };
+  return { result, aftermath, unlockedTier, names, classes, volunteers: volunteers.length ? volunteers : undefined, newRaces: newRaces.length ? newRaces : undefined };
 }
 
 /**

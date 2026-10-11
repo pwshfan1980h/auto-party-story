@@ -77,6 +77,7 @@ export function heroStats(classId: string, raceId: string, level: number, attrs:
 
   for (const [k, p] of Object.entries(r.pct)) (s as unknown as Record<string, number>)[k] *= 1 + (p ?? 0);
   for (const [k, p] of Object.entries(r.add)) (s as unknown as Record<string, number>)[k] += p ?? 0;
+  for (const [k, p] of Object.entries(r.resist ?? {})) s.resist[k as DamageType] = (s.resist[k as DamageType] ?? 0) + (p ?? 0);
 
   for (const it of worn) for (const [k, v] of Object.entries(it.add)) (s as unknown as Record<string, number>)[k] += v ?? 0;
   s.parry = Math.min(PROGRESSION.defense.cap, s.parry);
