@@ -11,15 +11,32 @@ const candidateHash=sourceHash();
 const server=spawn(process.execPath,['node_modules/vite/bin/vite.js','--host','127.0.0.1','--port',String(port),'--strictPort'],{stdio:['ignore','pipe','pipe']});
 let serverLog='';server.stdout.on('data',b=>serverLog+=b);server.stderr.on('data',b=>serverLog+=b);
 const results=[];let browser;
+let active={engine:null,case:'starting server'};
+const diagnostics={};
+function publishSummary(error){
+  if(!process.env.GITHUB_STEP_SUMMARY)return;
+  const lines=['## Desktop browser checks',error?'Failed':'Passed',`Source: ${candidateHash}`,
+    `Current browser: ${active.engine||'not launched'}; case: ${active.case}`,
+    ...Object.keys(diagnostics).map(engine=>`${engine}: ${results.filter(r=>r.engine===engine&&r.passed).length} completed scenarios`),
+    '', '```json',JSON.stringify(diagnostics,null,2),'```'];
+  if(error)lines.push('','```text',String(error.stack||error).slice(0,12000),'```');
+  fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,lines.join('\n')+'\n');
+}
 const wait=ms=>new Promise(r=>setTimeout(r,ms));
 async function ready(){for(let i=0;i<60;i++){try{if((await fetch(url)).ok)return}catch{}if(server.exitCode!==null)break;await wait(200)}throw Error('Test server unavailable: '+serverLog)}
 async function check(engine){
+  active={engine,case:'launch browser'};
   const errors=[];
   browser=await ({chromium,firefox}[engine]).launch(engine==='chromium'?{executablePath:process.env.CHROMIUM_PATH,headless:true,args:['--no-sandbox','--enable-unsafe-swiftshader','--use-angle=swiftshader']}:{headless:true,firefoxUserPrefs:{'webgl.force-enabled':true}});
   const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true});
   const p=await context.newPage();p.on('pageerror',e=>errors.push(e.message));p.on('dialog',d=>d.accept());
   await p.goto(url);
-  const entry=async(label,fn)=>{await fn();results.push({engine,case:label,passed:true});console.log(engine+': '+label)};
+  diagnostics[engine]={version:browser.version(),pageErrors:errors,graphics:await p.evaluate(()=>{
+    const gl=document.createElement('canvas').getContext('webgl2');
+    const info={webgl2:!!gl,userAgent:navigator.userAgent};
+    gl?.getExtension('WEBGL_lose_context')?.loseContext();return info;
+  })};
+  const entry=async(label,fn)=>{active={engine,case:label};await fn();results.push({engine,case:label,passed:true});console.log(engine+': '+label)};
   async function fixture(kind='fresh',speed=.75,motion=true){
     await p.evaluate(async({kind,speed,motion})=>{
       const{newGame,candidate}=await import('/src/game/state.ts');
@@ -159,4 +176,4 @@ async function check(engine){
   });
   assert.deepEqual(errors,[]);await context.close();await browser.close();browser=null;
 }
-(async()=>{try{await ready();for(const engine of (process.env.APS_BROWSERS||'chromium').split(','))await check(engine);fs.writeFileSync(out+'/checks.json',JSON.stringify({at:new Date().toISOString(),sourceHash:candidateHash,results},null,2))}finally{if(browser)await browser.close();server.kill()}})().catch(e=>{fs.writeFileSync(out+'/failure.json',JSON.stringify({at:new Date().toISOString(),sourceHash:candidateHash,error:e.stack,results},null,2));console.error(e);process.exitCode=1});
+(async()=>{try{await ready();for(const engine of (process.env.APS_BROWSERS||'chromium').split(','))await check(engine);fs.writeFileSync(out+'/checks.json',JSON.stringify({at:new Date().toISOString(),sourceHash:candidateHash,diagnostics,results},null,2));publishSummary()}finally{if(browser)await browser.close();server.kill()}})().catch(e=>{fs.writeFileSync(out+'/failure.json',JSON.stringify({at:new Date().toISOString(),sourceHash:candidateHash,active,diagnostics,error:e.stack,results},null,2));publishSummary(e);console.error(e);process.exitCode=1});
