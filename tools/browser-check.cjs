@@ -27,15 +27,17 @@ async function ready(){for(let i=0;i<60;i++){try{if((await fetch(url)).ok)return
 async function check(engine){
   active={engine,case:'launch browser'};
   const errors=[];
-  browser=await ({chromium,firefox}[engine]).launch(engine==='chromium'?{executablePath:process.env.CHROMIUM_PATH,headless:true,args:['--no-sandbox','--enable-unsafe-swiftshader','--use-angle=swiftshader']}:{headless:true,firefoxUserPrefs:{'webgl.force-enabled':true}});
+  browser=await ({chromium,firefox}[engine]).launch(engine==='chromium'?{executablePath:process.env.CHROMIUM_PATH,headless:true,args:['--no-sandbox','--enable-unsafe-swiftshader','--use-angle=swiftshader']}:{headless:process.env.APS_FIREFOX_HEADED!=='1',firefoxUserPrefs:{'webgl.force-enabled':true,'webgl.disabled':false,'gfx.webrender.software':true}});
   const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true});
-  const p=await context.newPage();p.on('pageerror',e=>errors.push(e.message));p.on('dialog',d=>d.accept());
+  const dialogs=[];
+  const p=await context.newPage();p.on('pageerror',e=>errors.push(e.message));p.on('dialog',d=>{dialogs.push(d.message());d.accept()});
   await p.goto(url);
-  diagnostics[engine]={version:browser.version(),pageErrors:errors,graphics:await p.evaluate(()=>{
+  diagnostics[engine]={version:browser.version(),pageErrors:errors,dialogs,graphics:await p.evaluate(()=>{
     const gl=document.createElement('canvas').getContext('webgl2');
     const info={webgl2:!!gl,userAgent:navigator.userAgent};
     gl?.getExtension('WEBGL_lose_context')?.loseContext();return info;
   })};
+  assert(diagnostics[engine].graphics.webgl2,`${engine} cannot create the WebGL2 context required for normal battle rendering`);
   const entry=async(label,fn)=>{active={engine,case:label};await fn();results.push({engine,case:label,passed:true});console.log(engine+': '+label)};
   async function fixture(kind='fresh',speed=.75,motion=true){
     await p.evaluate(async({kind,speed,motion})=>{
@@ -51,7 +53,9 @@ async function check(engine){
   }
   async function drive(){return p.evaluate(()=>{let n=0;while(window.__game.player&&n++<500){const pl=window.__game.player;if(pl.councilOpen)document.querySelector('.council-panel button:not(:disabled)')?.click();pl.skipFight();window.__game.step(3)}return{iterations:n,receipt:window.__game.state.lastReceipt,pending:!!window.__game.state.pending}})}
   await entry('fresh expedition, truthful receipt, settled once',async()=>{
-    await fixture();await p.getByRole('button',{name:'Delve',exact:true}).click();const r=await drive();assert(!r.pending);await p.locator('.run-recap').waitFor();assert.equal(await p.locator('.run-recap').count(),1);assert.equal(await p.locator('.recap-metrics strong').first().innerText(),'+'+r.receipt.banked.toLocaleString());
+    await fixture();await p.getByRole('button',{name:'Delve',exact:true}).click();
+    assert(await p.evaluate(()=>!!window.__game.player||!!window.__game.state.lastReceipt),`Expedition did not start: ${JSON.stringify({engine,dialogs,errors})}`);
+    const r=await drive();assert(!r.pending);assert(r.receipt,'Expedition did not produce a settled receipt');await p.locator('.run-recap').waitFor();assert.equal(await p.locator('.run-recap').count(),1);assert.equal(await p.locator('.recap-metrics strong').first().innerText(),'+'+r.receipt.banked.toLocaleString());
     await p.screenshot({path:`${out}/${engine}-return.png`,fullPage:true});
   });
   await entry('persistent preferences across two expeditions and reload',async()=>{
@@ -176,4 +180,4 @@ async function check(engine){
   });
   assert.deepEqual(errors,[]);await context.close();await browser.close();browser=null;
 }
-(async()=>{try{await ready();for(const engine of (process.env.APS_BROWSERS||'chromium').split(','))await check(engine);fs.writeFileSync(out+'/checks.json',JSON.stringify({at:new Date().toISOString(),sourceHash:candidateHash,diagnostics,results},null,2));publishSummary()}finally{if(browser)await browser.close();server.kill()}})().catch(e=>{fs.writeFileSync(out+'/failure.json',JSON.stringify({at:new Date().toISOString(),sourceHash:candidateHash,active,diagnostics,error:e.stack,results},null,2));publishSummary(e);console.error(e);process.exitCode=1});
+(async()=>{try{await ready();for(const engine of (process.env.APS_BROWSERS||'chromium').split(','))await check(engine);fs.writeFileSync(out+'/checks.json',JSON.stringify({at:new Date().toISOString(),sourceHash:candidateHash,diagnostics,results},null,2));publishSummary()}finally{if(browser)await browser.close();server.kill()}})().catch(e=>{fs.writeFileSync(out+'/failure.json',JSON.stringify({at:new Date().toISOString(),sourceHash:candidateHash,active,diagnostics,error:e.stack,results},null,2));publishSummary(e);console.error(e);if(process.env.GITHUB_ACTIONS)console.error('::error title=Desktop browser failure::'+JSON.stringify({active,diagnostics,error:String(e.stack||e)}).replace(/%/g,'%25').replace(/\r/g,'%0D').replace(/\n/g,'%0A'));process.exitCode=1});

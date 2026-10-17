@@ -52,9 +52,11 @@ jobs:
         run: npm run test:build
 
       - name: Desktop browser checks
-        run: npm run test:browser
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1440x1000x24" npm run test:browser
         env:
           APS_BROWSERS: chromium,firefox
+          APS_FIREFOX_HEADED: '1'
+          LIBGL_ALWAYS_SOFTWARE: '1'
 
       - uses: actions/upload-artifact@v4
         if: always()

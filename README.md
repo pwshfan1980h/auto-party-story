@@ -42,4 +42,6 @@ The combat and run simulation lives in `src/sim/` and has no rendering dependenc
 
 Reports are written under ignored `reports/`. `--gate` makes unmet balance targets fail the command; exploratory reports without it still list findings. The company campaign supports `prepared`, `simple`, and `risky` policies. Its simulated fight duration excludes player deliberation and interface travel time.
 
+On Linux CI, Firefox runs in a virtual desktop with software graphics. To use the same browser setup locally, run `APS_BROWSERS=chromium,firefox APS_FIREFOX_HEADED=1 LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a npm run test:browser` after installing the browser system dependencies. Test failures report the browser, scenario, and graphics support in the CI diagnostics.
+
 Saves stay in the current browser and hostname. Use **Export save** before moving browsers or hosts, then **Import save** on the new one. Closing an active delve lets the Leader finish it; deaths are permanent. Damaged saves are preserved for recovery, and blocked storage is shown visibly.
