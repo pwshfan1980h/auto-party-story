@@ -1,6 +1,7 @@
 // Generated sound (DESIGN §5a): crunchy, low and never shrill. Everything is synthesised with WebAudio,
 // so there are no sample files. A master low-pass keeps highs soft, and a short dungeon reverb glues it.
 import voicesJson from '../../data/voices.json';
+import { scheduleCue, type CueKey } from './cues';
 
 export type Voice = 'phys' | 'fire' | 'frost' | 'shadow' | 'holy' | 'storm' | 'poison';
 export type Mood = 'shout' | 'pain' | 'cheer' | 'murmur';
@@ -23,6 +24,9 @@ export class Sfx {
   private last = new Map<string, number>();
   volume = 0.7;
   muted = false;
+  private cueBus: GainNode | null = null;
+  private cueTimer: ReturnType<typeof setTimeout> | undefined;
+  private battleTimers = new Set<ReturnType<typeof setTimeout>>();
 
   constructor() {
     try {
@@ -33,7 +37,10 @@ export class Sfx {
 
   /** Browsers only allow audio after a user gesture; call this from one. */
   unlock() {
-    if (this.ctx) { if (this.ctx.state === 'suspended') void this.ctx.resume(); return; }
+    try {this.unlockContext()}catch{this.ctx=null}
+  }
+  private unlockContext() {
+    if (this.ctx) { if (this.ctx.state === 'suspended') void this.ctx.resume().catch(()=>{}); return; }
     const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AC) return;
     const ctx = new AC();
@@ -64,12 +71,36 @@ export class Sfx {
   }
 
   setVolume(v: number, muted = this.muted) {
-    this.volume = v; this.muted = muted;
+    this.volume = Number.isFinite(v)?Math.max(0,Math.min(1,v)):0; this.muted = muted;
     this.applyVolume();
-    try { localStorage.setItem(VOL_KEY, `${v}:${muted ? 1 : 0}`); } catch { /* not saved */ }
+    if(muted)this.stopCue();
+    try { localStorage.setItem(VOL_KEY, `${this.volume}:${muted ? 1 : 0}`); } catch { /* not saved */ }
+    if(typeof window!=='undefined')window.dispatchEvent(new Event('aps-audio'));
   }
 
   private applyVolume() { if (this.ctx) this.master.gain.setTargetAtTime(this.muted ? 0 : this.volume * 0.9, this.ctx.currentTime, 0.02); }
+
+  stopCue() {
+    if(this.cueTimer)clearTimeout(this.cueTimer);
+    this.cueTimer=undefined;
+    if(this.cueBus){this.cueBus.gain.value=0;this.cueBus.disconnect();this.cueBus=null;}
+    if(this.ctx){this.dry.gain.setTargetAtTime(1,this.now,.04);this.wet.gain.setTargetAtTime(.32,this.now,.04)}
+  }
+
+  cue(kind:CueKey) {
+    if(!this.ctx || this.muted)return;
+    this.stopCue();
+    const bus=this.ctx.createGain();bus.gain.value=1;bus.connect(this.master);this.cueBus=bus;
+    this.dry.gain.setTargetAtTime(.25,this.now,.025);
+    this.wet.gain.setTargetAtTime(.08,this.now,.025);
+    const duration=scheduleCue(this.ctx,bus,kind,this.now+.015);
+    this.cueTimer=setTimeout(()=>{if(this.cueBus===bus)this.stopCue()},(duration+.1)*1000);
+  }
+
+  stopBattleTimers() {
+    for (const timer of this.battleTimers) clearTimeout(timer);
+    this.battleTimers.clear();
+  }
 
   private get now() { return this.ctx!.currentTime; }
 
@@ -87,7 +118,7 @@ export class Sfx {
   private out(pan: number, wet = 0.2, crunch = false): AudioNode {
     const ctx = this.ctx!;
     const p = ctx.createStereoPanner();
-    p.pan.value = Math.max(-0.85, Math.min(0.85, pan));
+    p.pan.value = Number.isFinite(pan)?Math.max(-0.85, Math.min(0.85, pan)):0;
     p.connect(crunch ? this.crunch : this.dry);
     if (wet > 0) { const s = ctx.createGain(); s.gain.value = wet; p.connect(s).connect(this.wet); }
     return p;
@@ -232,7 +263,8 @@ export class Sfx {
     this.tone(o, t, 0.5, 0.25, 'sawtooth', 55, 110, 0.4, -8);
     this.tone(o, t, 0.5, 0.2, 'sawtooth', 55, 110, 0.4, 8);
     this.noise(o, t, 0.5, 0.2, 'bandpass', 300, 1500, 2, 0.4);
-    setTimeout(() => this.explosion(pan, 1.1, voice), 380);
+    const timer=setTimeout(()=>{this.battleTimers.delete(timer);this.explosion(pan,1.1,voice)},380);
+    this.battleTimers.add(timer);
   }
 
   /** A warning: something big is about to land here. */

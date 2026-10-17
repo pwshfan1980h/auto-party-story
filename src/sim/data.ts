@@ -191,7 +191,8 @@ export const ITEMS = ITEMS_DATA.items;
 
 export const ORDERS_DATA = ordersJson as unknown as {
   orders: Record<string, { cost: number; cooldown: number }>;
-  goodBot: { mendBelowHp: number; unleashBelowHp: number; holdBelowHp: number; reserveForInterrupt: number };
+  goodBot: { mendBelowHp: number; unleashBelowHp: number; holdBelowHp: number; reserveForInterrupt: number; reserveForSummons:number;emergencyReviveSeconds:number };
+  reaction: { mendBoost:number; mendWindup:number };
 };
 
 export const PROGRESSION = progressionJson as { promoteLevel: number; defense: { parryPerAgility: number; blockPerVigor: number; cap: number }; bot: { tierSlack: number; pushAt: number }; killXpPerLevel: number; roomClearBonus: number; xpCurve: { base: number; exponent: number }; overLevelGap: number; overLevelMult: number; underLevelMult: number; maxLevel: number };

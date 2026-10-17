@@ -3,7 +3,7 @@ import { CLASSES, RACES, TIERS } from '../sim/data';
 import { leaderProfile, type Doctrine } from '../sim/leader';
 import { xpToNext, type RosterHero } from '../sim/roster';
 import { hire, partySizeFor, planProblem, rest, type DelvePlan } from '../game/expedition';
-import { build, CAMP, equip, hireCost, promote, promotions, raceMet, TIER_IDS, type GameState } from '../game/state';
+import { BASE_CLASSES, build, CAMP, equip, hireCost, promote, promotions, raceMet, TIER_IDS, type GameState } from '../game/state';
 import { ABILITIES, ITEMS } from '../sim/data';
 import { canEquip, SLOTS } from '../sim/items';
 
@@ -16,6 +16,12 @@ function describe(id: string): string {
 }
 import { clear, el } from './dom';
 import { portrait } from './portrait';
+import { standardPortrait } from './runRecap';
+import { preferences,updatePreferences } from '../game/preferences';
+import { balancedParty,neededRecruit,readiness,recommendedTier,recommendedWaystone } from '../game/preparation';
+import { claimReward,COMPANY } from '../game/rewards';
+import { commission,commissionCost,commissionLevel,protectItem,refreshCost,rerollBoard,salvage,salvageValue,serviceCost,serviceGear,servicePreview } from '../game/economy';
+import { sfx } from '../audio/sfx';
 
 const DOCTRINES: [Doctrine, string, string][] = [
   ['balanced', 'Balanced', 'Weigh each room as it comes.'],
@@ -25,16 +31,17 @@ const DOCTRINES: [Doctrine, string, string][] = [
 ];
 const TIER_NAMES: Record<string, string> = Object.fromEntries(TIER_IDS.map((t) => [t, TIERS[t].name]));
 
-export interface TownHandlers { onDelve(plan: DelvePlan): void; onAbandon(): void }
+export interface TownHandlers { onDelve(plan: DelvePlan): void; onAbandon(): void; onReview?():void }
 
 export class Town {
   private plan: DelvePlan;
-  private abandonArmed = false;
   private gearOpen: string | null = null;
   private trainOpen: string | null = null;
+  private recruitClass='cleric';
+  private message='';
 
   constructor(private readonly root: HTMLElement, private state: GameState, private readonly on: TownHandlers) {
-    const tier = TIER_IDS[state.unlocked];
+    const tier = recommendedTier(state);
     this.plan = { partyIds: [], leaderId: '', tier, doctrine: 'balanced', fromWaystone: false };
     this.autoPick();
   }
@@ -45,7 +52,7 @@ export class Town {
   private autoPick() {
     const ready = this.state.roster.filter((h) => h.benched <= 0).sort((a, b) => b.hero.level - a.hero.level);
     this.plan.partyIds = this.plan.partyIds.filter((id) => ready.some((h) => h.hero.id === id));
-    for (const h of ready) if (this.plan.partyIds.length < partySizeFor(this.plan.tier) && !this.plan.partyIds.includes(h.hero.id)) this.plan.partyIds.push(h.hero.id);
+    for (const h of [...balancedParty(this.state,partySizeFor(this.plan.tier)),...ready]) if (this.plan.partyIds.length < partySizeFor(this.plan.tier) && !this.plan.partyIds.includes(h.hero.id)) this.plan.partyIds.push(h.hero.id);
     this.plan.partyIds = this.plan.partyIds.slice(0, partySizeFor(this.plan.tier));
     if (!this.plan.partyIds.includes(this.plan.leaderId)) {
       const best = this.plan.partyIds.map((id) => this.hero(id)!).sort((a, b) => b.hero.leadership - a.hero.leadership)[0];
@@ -62,11 +69,17 @@ export class Town {
     const problem = planProblem(s, this.plan);
     const way = s.waystones[this.plan.tier];
     const first = TIERS[this.plan.tier].floors[0];
-    this.root.append(
+    const needed=neededRecruit(s);
+    this.root.append(el('div',{class:'town-page'},
       el('header', { class: 'town-head' },
         el('h1', {}, 'Torchwatch'),
         el('div', { class: 'stats' },
           el('span', {}, `◆ ${s.coin} coin`), el('span', {}, `${s.runs} delves`), el('span', {}, `Tier ${TIER_IDS[s.unlocked]} open`))),
+      !preferences.guideSeen?el('section',{class:'panel first-guide','aria-label':'How to play'},el('h2',{},'The torch is yours to hand over.'),
+        el('p',{},'1. Prepare a company with a frontline and healing. 2. Choose a Leader and standing orders. 3. Delve, give timely orders, and bank what you bring home.'),
+        el('p',{class:'warn'},'Death is permanent. Closing a running delve lets the Leader finish it. Returning alive with loot is a success.'),
+        el('button',{type:'button',onclick:()=>{updatePreferences({guideSeen:true});this.render()}},'Got it — prepare the company')):null,
+      this.message?el('p',{class:'town-message',role:'status'},this.message):null,
       el('main', { class: 'town' },
         el('div', { class: 'col' },
           el('section', { class: 'panel roster', 'aria-label': 'Your heroes' },
@@ -74,6 +87,7 @@ export class Town {
             el('div', { class: 'cards' }, ...s.roster.map((h) => this.heroCard(h))),
             s.roster.length === 0 ? el('p', { class: 'muted' }, 'The Inn is empty. Hire someone from the board.') : null),
           this.campPanel(),
+          this.storesPanel(),
           this.memorialPanel()),
         el('div', { class: 'col' },
           el('section', { class: 'panel plan', 'aria-label': 'Expedition' },
@@ -89,23 +103,52 @@ export class Town {
             el('p', {}, 'Leader: ', el('strong', {}, this.hero(this.plan.leaderId)?.hero.name ?? 'none')),
             el('button', { class: 'go', type: 'button', disabled: !!problem, onclick: () => this.on.onDelve({ ...this.plan, partyIds: [...this.plan.partyIds] }) }, 'Delve'),
             problem ? el('p', { class: 'warn' }, problem) : null,
+            ...readiness(s,this.plan.partyIds,this.plan.tier,this.plan.fromWaystone).map(w=>el('p',{class:'readiness-note'},w)),
+            needed?el('div',{class:'readiness-note'},el('p',{},`Your roster needs a ${needed==='cleric'?'sustained healer':'dedicated frontline'}. A ${CLASSES[needed].name} arrives at level ${commissionLevel(s)}.`),
+              el('button',{type:'button',disabled:s.coin<commissionCost(s),onclick:()=>{const error=commission(s,needed);if(!error){this.plan.partyIds=balancedParty(s,size).map(h=>h.hero.id);this.plan.leaderId='';this.autoPick()}this.action(error,'The needed role was recruited and a balanced party suggested. Review the company before you go.')}},`Recruit ${CLASSES[needed].name} & prepare · ${commissionCost(s)} coin`)):null,
+            el('button',{type:'button',onclick:()=>{this.plan.partyIds=balancedParty(s,size).map(h=>h.hero.id);this.plan.leaderId='';this.autoPick();this.message='A frontline and available healing were prioritized. Review the company before you go.';this.render()}},'Suggest a balanced party'),
+            recommendedTier(s)!==this.plan.tier||this.plan.fromWaystone&&!recommendedWaystone(s,this.plan.partyIds,this.plan.tier)?el('button',{type:'button',onclick:()=>{this.plan.tier=recommendedTier(s);this.plan.fromWaystone=false;this.plan.partyIds=[];this.autoPick();this.render()}},recommendedTier(s)===this.plan.tier?'Prepare an entrance recovery route':TIER_IDS.indexOf(recommendedTier(s))<TIER_IDS.indexOf(this.plan.tier)?`Prepare a Tier ${recommendedTier(s)} recovery route`:`Prepare the recommended Tier ${recommendedTier(s)} route`):null,
           s.roster.length && s.roster.every((h) => h.benched > 0) ? el('button', { type: 'button', onclick: () => { rest(s); this.autoPick(); this.render(); } }, 'Rest a while (everyone recovers a little)') : null),
           el('section', { class: 'panel board', 'aria-label': 'Hire board' },
             el('h2', {}, 'Hire board'),
             el('div', { class: 'cards' }, ...s.hireBoard.map((h) => this.hireCard(h))),
+            el('button',{type:'button',disabled:s.coin<refreshCost(s),onclick:()=>this.action(rerollBoard(s),'The hire board has new faces.')},`Refresh hire board · ${refreshCost(s)} coin`),
+            el('h3',{},'Commission a needed role'),
+            el('p',{class:'muted'},`Choose a class directly. Recruits arrive at level ${commissionLevel(s)}.`),
+            this.select(BASE_CLASSES.map(c=>[c,CLASSES[c].name]),this.recruitClass,v=>{this.recruitClass=v;this.render()}),
+            el('button',{type:'button',disabled:s.coin<commissionCost(s),onclick:()=>{const error=commission(s,this.recruitClass);this.autoPick();this.action(error,'Your commissioned recruit is at the Inn.')}},`Commission · ${commissionCost(s)} coin`),
             this.racesNote()))),
-    );
+    ));
+  }
+
+  private action(error:string|null,success:string){this.message=error??success;if(!error)sfx.cue('build');this.render()}
+
+  private storesPanel(){
+    const s=this.state,unclaimed=(s.rewards??[]).filter(r=>!r.claimed);
+    const panel=el('section',{class:'panel stores','aria-label':'Company stores'},el('h2',{},'The stores'));
+    for(const reward of unclaimed)panel.append(el('div',{class:'unclaimed-reward'},el('h3',{},`Tier ${reward.tier} first-clear reward`),
+      ...reward.options.map(id=>el('button',{type:'button',title:describe(id),onclick:()=>this.action(claimReward(s,reward.id,id),`${ITEMS[id].name} is in the stores.`)},`Claim ${ITEMS[id].name}`)),
+      el('button',{type:'button',onclick:()=>this.action(claimReward(s,reward.id,'coin'),'The service fund is available.')},`Claim ${COMPANY.rewards.firstClearCoin[TIER_IDS.indexOf(reward.tier)]} coin instead`)));
+    const stock=[...new Set(s.stash??[])];
+    panel.append(stock.length?el('p',{class:'muted'},'Use a hero’s Gear button to equip items. Protect favorites; salvage only spare duplicates.'):el('p',{class:'muted'},'Gear found in delves waits here. First-clear rewards can also be claimed here.'));
+    for(const id of stock){const count=s.stash!.filter(x=>x===id).length,protectedItem=s.favorites?.includes(id);panel.append(el('div',{class:'store-row'},el('span',{},`${ITEMS[id].name} ×${count}`),
+      el('button',{type:'button','aria-pressed':String(!!protectedItem),onclick:()=>{protectItem(s,id);this.render()}},protectedItem?'Protected':'Protect'),
+      el('button',{type:'button',disabled:count<2||!!protectedItem,onclick:()=>{if(confirm(`Salvage one spare ${ITEMS[id].name} for ${salvageValue(id)} coin? Another copy remains in the stores.`))this.action(salvage(s,id),'One spare item was salvaged; another copy was kept.')}},`Salvage spare · ${salvageValue(id)}`)))}
+    return panel;
   }
 
   private campPanel() {
     const s = this.state;
+    const standard=s.milestones.III!==undefined?standardPortrait():'';
     return el('section', { class: 'panel camp', 'aria-label': 'Torchwatch' },
       el('h2', {}, 'Torchwatch', el('small', {}, ` ${(s.camp ?? []).length} of ${Object.keys(CAMP).length} built`)),
+      s.legacyCompletion?el('p',{class:'muted'},'This older company’s final-clear records are incomplete. Its next final victory will be remembered here as the first recorded clear.'):null,
+      s.milestones.III!==undefined?el('div',{class:'town-standard'},standard?el('img',{src:standard,alt:'Your company standard',width:96,height:112}):null,el('p',{class:'gain'},'Your company conquered the depths. The standard remains.')):null,
       el('div', { class: 'builds' }, ...Object.entries(CAMP).map(([id, u]) => {
         const built = s.camp?.includes(id);
         return el('article', { class: `build${built ? ' built' : ''}` },
           el('strong', {}, u.name), el('span', { class: 'muted' }, u.about),
-          built ? el('span', { class: 'gain' }, 'Built') : el('button', { type: 'button', disabled: s.coin < u.cost, onclick: () => { build(s, id); this.render(); } }, `Build · ${u.cost}`));
+          built ? el('span', { class: 'gain' }, 'Built') : el('button', { type: 'button', disabled: s.coin < u.cost, onclick: () => this.action(build(s,id),`${u.name} is ready for the company.`) }, `Build · ${u.cost}`));
       })));
   }
 
@@ -115,8 +158,9 @@ export class Town {
       el('h2', {}, 'The memorial'),
       s.memorial.length ? el('ul', {}, ...s.memorial.slice().reverse().map((m) => el('li', {}, `${m.name}, ${RACES[m.raceId]?.name ?? m.raceId} ${CLASSES[m.classId]?.name ?? m.classId}, level ${m.level}: ${m.cause ?? 'fell'} (Tier ${m.tier}, delve ${m.run}).`))) : el('p', { class: 'muted' }, 'No names yet.'),
       el('h2', {}, 'Past delves'),
+      s.lastReceipt?el('button',{type:'button',onclick:()=>this.on.onReview?.()},'Review last return'):null,
       s.history.length ? el('ul', {}, ...s.history.slice(0, 10).map((r) => el('li', {}, `#${r.run} Tier ${r.tier}: ${r.outcome === 'cleared' ? 'cleared' : r.outcome === 'retreat' ? 'came home' : 'wiped'}, floor ${r.floors}, +${r.banked} coin${r.died.length ? `, lost ${r.died.join(', ')}` : ''}`))) : el('p', { class: 'muted' }, 'No delves yet.'),
-      el('button', { type: 'button', class: 'quiet', onclick: () => { if (this.abandonArmed) this.on.onAbandon(); else { this.abandonArmed = true; this.render(); } } }, this.abandonArmed ? 'Really abandon this save? Click again' : 'Abandon save'));
+      el('button', { type: 'button', class: 'quiet', onclick: () => { if(confirm('Abandon this company and begin again? A backup of this save will be kept.'))this.on.onAbandon(); } }, 'Abandon save'));
   }
 
   private select(options: [string, string][], value: string, onChange: (v: string) => void) {
@@ -180,7 +224,11 @@ export class Town {
           el('option', { value: '' }, worn ? '(take off)' : '(none)'),
           worn ? el('option', { value: worn, selected: true, disabled: true }, ITEMS[worn].name) : null,
           ...options.map((i) => el('option', { value: i }, `${ITEMS[i].name} (${describe(i)})`))));
-    }), stash.length ? null : el('span', { class: 'muted' }, 'The stores are empty. Delves turn up gear.'));
+    }), stash.length ? null : el('span', { class: 'muted' }, 'The stores are empty. Delves turn up gear.'),
+    el('div',{class:'equipment-service'},el('strong',{},`Equipment service · ${this.state.refinements?.[h.hero.id]??0}/${COMPANY.economy.serviceCap}`),
+      el('p',{},`Each service adds ${COMPANY.economy.serviceGearStep} gear quality in future delves, improving health, damage, spells, and armour. It stays with this hero.`),
+      el('p',{class:'gain'},`Tier ${this.plan.tier}: ${servicePreview(this.state,h.hero.id,this.plan.tier)}`),
+      el('button',{type:'button',disabled:(this.state.refinements?.[h.hero.id]??0)>=COMPANY.economy.serviceCap||this.state.coin<serviceCost(this.state,h.hero.id),onclick:()=>this.action(serviceGear(this.state,h.hero.id),`${h.hero.name}’s equipment was improved.`)},`Service gear · ${serviceCost(this.state,h.hero.id)} coin`)));
   }
 
   /** Who comes to the Inn: races met, and hints at the ones still to meet. */

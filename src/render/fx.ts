@@ -25,6 +25,15 @@ export class Fx {
   static MAX_DEBRIS = 900;
 
   constructor(private readonly parent: THREE.Object3D) {}
+  private release(object: THREE.Object3D) {
+    this.parent.remove(object);
+    object.traverse(node => {
+      if (!(node instanceof THREE.Mesh)) return;
+      if (node instanceof THREE.InstancedMesh) node.dispose();
+      if (node.geometry !== cube) node.geometry.dispose();
+      for (const material of Array.isArray(node.material) ? node.material : [node.material]) material.dispose();
+    });
+  }
 
   /** Throw a set of coloured voxels out from a point (deaths, chips, sparks). */
   burst(at: THREE.Vector3, voxels: { x: number; y: number; z: number; c: number }[], size: number, opts: { life?: number; up?: number; grav?: number; spread?: number; yaw?: number } = {}) {
@@ -99,7 +108,7 @@ export class Fx {
       w.mesh.scale.setScalar(Math.max(0.05, w.r * (1 - Math.pow(1 - k, 3))));
       (w.mesh.material as THREE.MeshBasicMaterial).opacity = 0.85 * (1 - k);
     }
-    for (const w of this.waves.filter((x) => x.t >= x.dur)) { this.parent.remove(w.mesh); w.mesh.geometry.dispose(); }
+    for (const w of this.waves.filter((x) => x.t >= x.dur)) this.release(w.mesh);
     this.waves = this.waves.filter((x) => x.t < x.dur);
     for (const f of this.flashes) { f.t += dt; f.light.intensity = f.peak * Math.max(0, 1 - f.t / f.dur); }
     for (const f of this.flashes.filter((x) => x.t >= x.dur)) this.parent.remove(f.light);
@@ -118,7 +127,7 @@ export class Fx {
       });
       b.mesh.instanceMatrix.needsUpdate = true;
     }
-    for (const b of this.bursts.filter((x) => x.t >= x.life)) { this.parent.remove(b.mesh); b.mesh.dispose(); this.live -= b.parts.length; }
+    for (const b of this.bursts.filter((x) => x.t >= x.life)) { this.release(b.mesh); this.live -= b.parts.length; }
     this.bursts = this.bursts.filter((x) => x.t < x.life);
     for (const p of this.projs) {
       p.t += dt;
@@ -126,22 +135,22 @@ export class Fx {
       p.mesh.position.lerpVectors(p.a, p.b, k);
       p.mesh.position.y += Math.sin(k * Math.PI) * p.arc;
     }
-    for (const p of this.projs.filter((x) => x.t >= x.dur)) this.parent.remove(p.mesh);
+    for (const p of this.projs.filter((x) => x.t >= x.dur)) this.release(p.mesh);
     this.projs = this.projs.filter((x) => x.t < x.dur);
     for (const r of this.rings) { r.t += dt; r.fill.scale.setScalar(Math.max(0.01, Math.min(1, r.t / r.dur))); }
-    for (const r of this.rings.filter((x) => x.t >= x.dur)) this.parent.remove(r.group);
+    for (const r of this.rings.filter((x) => x.t >= x.dur)) this.release(r.group);
     this.rings = this.rings.filter((x) => x.t < x.dur);
     for (const d of this.decals) { d.t += dt; d.mesh.scale.setScalar(Math.max(0.01, Math.min(1, (d.life - d.t) / 2))); }
-    for (const d of this.decals.filter((x) => x.t >= x.life)) this.parent.remove(d.mesh);
+    for (const d of this.decals.filter((x) => x.t >= x.life)) this.release(d.mesh);
     this.decals = this.decals.filter((x) => x.t < x.life);
   }
 
   clear() {
-    for (const b of this.bursts) this.parent.remove(b.mesh);
-    for (const p of this.projs) this.parent.remove(p.mesh);
-    for (const r of this.rings) this.parent.remove(r.group);
-    for (const d of this.decals) this.parent.remove(d.mesh);
-    for (const w of this.waves) this.parent.remove(w.mesh);
+    for (const b of this.bursts) this.release(b.mesh);
+    for (const p of this.projs) this.release(p.mesh);
+    for (const r of this.rings) this.release(r.group);
+    for (const d of this.decals) this.release(d.mesh);
+    for (const w of this.waves) this.release(w.mesh);
     for (const f of this.flashes) this.parent.remove(f.light);
     this.bursts = []; this.projs = []; this.rings = []; this.decals = []; this.waves = []; this.flashes = []; this.live = 0;
   }

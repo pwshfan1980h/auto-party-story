@@ -1,0 +1,21 @@
+import { mkdirSync,writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import {evidence} from './evidence';
+import { runGameCampaign, type CompanyPolicy } from './gameCampaign';
+const args=process.argv.slice(2);
+const opt=(k:string,d:string)=>{const i=args.indexOf('--'+k);return i<0?d:args[i+1]};
+const seeds=opt('seeds','1,7,21,42,77,123,999,2026').split(',').map(Number),runs=+opt('runs','60'),policy=opt('policy','prepared') as CompanyPolicy;
+if(!seeds.length || seeds.some(s=>!Number.isSafeInteger(s)||s<0) || !Number.isSafeInteger(runs) || runs<1 || !['simple','prepared','risky'].includes(policy))throw Error('Invalid campaign arguments');
+const source=evidence();
+const output=opt('out',`reports/company-${Date.now()}`);mkdirSync(output,{recursive:true});
+const reports=seeds.map(seed=>{const r=runGameCampaign(seed,runs,policy);console.log(JSON.stringify({...r,rows:undefined}));return r});
+const quantile=(values:number[],p:number)=>{const sorted=[...values].sort((a,b)=>a-b);return sorted[Math.floor((sorted.length-1)*p)]??null};
+const completed=reports.filter(r=>r.firstFinalClear!==undefined),completion=completed.length/reports.length;
+const targets=policy==='prepared'?{completion:.9,medianRuns:40,horizon:75,stall:6}:policy==='simple'?{completion:.75,medianRuns:60,horizon:90,stall:8}:null;
+const finishedRuns=completed.map(r=>r.firstFinalClear!);
+const summary={completed:completed.length,samples:reports.length,completion,firstFinalRuns:{p25:quantile(finishedRuns,.25),median:quantile(finishedRuns,.5),p90:quantile(finishedRuns,.9),max:quantile(finishedRuns,1)},coinAtCompletion:{median:quantile(completed.map(r=>r.coinAtCompletion!),.5),p90:quantile(completed.map(r=>r.coinAtCompletion!),.9)},recoveryRuns:{median:quantile(reports.flatMap(r=>r.recoveries),.5),p90:quantile(reports.flatMap(r=>r.recoveries),.9)},longestStall:Math.max(...reports.map(r=>r.longestStall))};
+const failures=reports.flatMap(r=>r.errors.map(e=>`Seed ${r.seed}: ${e}`));
+if(targets){if(runs<targets.horizon)failures.push(`Pacing gate requires at least ${targets.horizon} runs`);if(completion<targets.completion)failures.push(`Completion ${completion} below ${targets.completion}`);if(summary.firstFinalRuns.median===null||summary.firstFinalRuns.median>targets.medianRuns)failures.push(`Median completion exceeds ${targets.medianRuns} runs`);if(summary.longestStall>targets.stall)failures.push(`Progress stall exceeds ${targets.stall} runs`)}
+console.log(JSON.stringify({summary,failures}));
+writeFileSync(join(output,'report.json'),JSON.stringify({...source,seeds,runs,policy,targets,summary,failures,gate:{enabled:args.includes('--gate'),passed:!failures.length,exitCode:args.includes('--gate')&&failures.length?1:0},reports},null,2));
+if(reports.some(r=>r.errors.length || r.runs!==runs)||args.includes('--gate')&&failures.length)process.exitCode=1;

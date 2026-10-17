@@ -134,5 +134,11 @@ export class HazardView {
     if (this.glow.instanceColor) this.glow.instanceColor.needsUpdate = true;
   }
 
-  dispose(parent: THREE.Object3D) { parent.remove(this.gas, this.glow, ...this.lights); }
+  dispose(parent: THREE.Object3D) {
+    parent.remove(this.gas, this.glow, ...this.lights);
+    for (const mesh of [this.gas, this.glow]) {
+      mesh.dispose();
+      (mesh.material as THREE.Material).dispose();
+    }
+  }
 }

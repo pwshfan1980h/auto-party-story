@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { heroModel, rollLook } from '../art/humanoid';
 import { UnitView } from '../render/unitView';
 import type { RunHero } from '../sim/run';
+import type { Model } from '../art/kit';
 
 const cache = new Map<string, string>();
 let renderer: THREE.WebGLRenderer | null = null;
@@ -25,13 +26,18 @@ const DIR = new THREE.Vector3(1, 0.55, 1.25).normalize();
 
 /** A data URL of the hero's model, or '' where WebGL isn't available. */
 export function portrait(hero: RunHero): string {
-  const hit = cache.get(hero.id);
+  return modelPortrait(`${hero.id}:${hero.classId}:${hero.raceId}`,()=>heroModel(hero.classId,rollLook(hero.raceId,hero.id)));
+}
+
+export function modelPortrait(key:string,make:()=>Model):string {
+  const hit = cache.get(key);
   if (hit !== undefined) return hit;
   let url = '';
+  let view:UnitView|undefined;
   try {
     if (!renderer) setup();
-    const view = new UnitView(heroModel(hero.classId, rollLook(hero.raceId, hero.id)));
-    view.pose('idle', 0);
+    const model=make();view = new UnitView(model);
+    if(model.style!=='none')view.pose('idle', 0);
     scene.add(view.root);
     // frame the whole body: centre on its bounds, and fit its height with a little headroom
     view.root.updateMatrixWorld(true);
@@ -44,8 +50,9 @@ export function portrait(hero: RunHero): string {
     cam.updateProjectionMatrix();
     renderer!.render(scene, cam);
     url = renderer!.domElement.toDataURL();
-    scene.remove(view.root);
   } catch { url = ''; }
-  cache.set(hero.id, url);
+  finally {if(view){scene.remove(view.root);for(const mesh of view.meshes)mesh.geometry.dispose()}}
+  if(cache.size>=256)cache.delete(cache.keys().next().value!);
+  cache.set(key, url);
   return url;
 }

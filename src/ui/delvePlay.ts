@@ -8,6 +8,8 @@ import { ORDERS, type FightResult, type OrderKind } from '../sim/fight';
 import type { FloorMap, NodeType } from '../sim/delve';
 import type { CouncilAnswer, DelveAnswer, DelveRequest, LedgerEntry, RunResult } from '../sim/run';
 import { clear, el } from './dom';
+import { preferences } from '../game/preferences';
+import { ORDERS_DATA } from '../sim/data';
 
 const ROOM_NAME: Record<NodeType, string> = { start: 'Entrance', fight: 'Fight', elite: 'Elite', treasure: 'Treasure', shrine: 'Shrine', campfire: 'Campfire', event: 'Event', horde: 'Horde', stairs: 'Stairs down', boss: 'Boss' };
 const GLYPH: Record<NodeType, string> = { start: 'S', fight: '⚔', elite: '☠', treasure: '◆', shrine: '+', campfire: '△', event: '?', horde: '≋', stairs: '▼', boss: '♛' };
@@ -15,7 +17,7 @@ const SVGNS = 'http://www.w3.org/2000/svg';
 
 /** The orders the player can give, who they target, and how they read on the button. */
 const ORDER_UI: { kind: OrderKind; label: string; target: 'ally' | 'foe' | 'none'; hint: string }[] = [
-  { kind: 'mend', label: 'Mend', target: 'ally', hint: 'The healer tends this hero now (revives the Downed)' },
+  { kind: 'mend', label: 'Mend', target: 'ally', hint: `Boost a ready heal or revival ${ORDERS_DATA.reaction.mendBoost}×, within the healer’s reach` },
   { kind: 'focus', label: 'Focus', target: 'foe', hint: 'Everyone hits this one' },
   { kind: 'interrupt', label: 'Interrupt', target: 'foe', hint: 'Break this enemy’s big cast' },
   { kind: 'guard', label: 'Guard', target: 'ally', hint: 'The tank shields this hero' },
@@ -40,8 +42,11 @@ export class DelvePlayer {
   private councilOpen = false;
   private result: RunResult | null = null;
   private lastLeader = '';
-  speed = 0.75;
-  readonly opts: BattleOptions = { camera: 'subtle', clarity: false, torchFuel: 7, audio: sfx };
+  private retiring = new Set<BattleReplay>();
+  private controlRefresh=0;
+  private roomTimer: ReturnType<typeof setTimeout> | undefined;
+  speed = preferences.speed;
+  readonly opts: BattleOptions = { camera: preferences.camera&&!preferences.reducedMotion?'subtle':'off', clarity: preferences.clarity, torchFuel: 7, audio: sfx };
 
   constructor(
     private readonly scene: BattleScene,
@@ -53,8 +58,11 @@ export class DelvePlayer {
     private readonly onDone: (result: RunResult) => void,
   ) {
     scene.canvas.addEventListener('click', this.onCanvasClick);
-    this.advance(undefined);
+    controls.addEventListener('keydown',this.onControlKey);
   }
+
+  start(){this.advance(undefined)}
+  presentEnding(dt:number){for(const replay of this.retiring)replay.update(dt,1)}
 
   /** Skip the fight on screen: it plays out at once, without further orders. */
   skipFight() { if (this.replay) { while (!this.replay.done) this.replay.update(0.25, 4); } }
@@ -62,9 +70,25 @@ export class DelvePlayer {
   turnBack() { if (!this.turnBackUsed) { this.wantTurnBack = true; this.drawControls(); } }
 
   dispose() {
+    this.cancelRoomCue();
     this.replay?.dispose(); this.replay = null;
+    for(const replay of this.retiring)replay.dispose();this.retiring.clear();
     this.scene.canvas.removeEventListener('click', this.onCanvasClick);
+    this.controls.removeEventListener('keydown',this.onControlKey);
     clear(this.controls);
+  }
+
+  private cancelRoomCue() {
+    if (this.roomTimer !== undefined) clearTimeout(this.roomTimer);
+    this.roomTimer = undefined;
+  }
+
+  private roomCue(room: string, delay: number) {
+    this.cancelRoomCue();
+    this.roomTimer = setTimeout(() => {
+      this.roomTimer = undefined;
+      if (!this.finished) sfx.room(room);
+    }, delay);
   }
 
   /** Feed an answer to the run and handle whatever it asks for next. */
@@ -94,7 +118,7 @@ export class DelvePlayer {
         if (!this.entries.includes(q.entry)) this.entries.push(q.entry);
         this.drawHud(q.entry);
         if (q.entry.room !== 'start') sfx.footsteps(4);
-        setTimeout(() => sfx.room(q.entry.room), 700);
+        this.roomCue(q.entry.room, 700);
         this.wait = q.entry.room === 'stairs' ? 2 : 1.6;
         this.pendingQ = q;
         return;
@@ -103,7 +127,9 @@ export class DelvePlayer {
         this.entries.push(q.entry);
         this.drawHud(q.entry);
         sfx.footsteps(3);
-        setTimeout(() => sfx.room(q.entry.room), 600);
+        this.roomCue(q.entry.room, 600);
+        for (const old of this.retiring) old.dispose();
+        this.retiring.clear();
         this.replay = new BattleReplay(this.scene, q.setup, this.overlay, this.opts, true);
         this.pendingQ = q;
         this.drawControls();
@@ -118,12 +144,15 @@ export class DelvePlayer {
     if (this.replay) {
       this.replay.update(dt, this.speed);
       this.drawEmbers();
+      this.controlRefresh-=dt;if(this.controlRefresh<=0){this.controlRefresh=.25;this.syncOrderButtons()}
       if (this.replay.done && this.replay.result) {
         const r: FightResult = this.replay.result;
         const old = this.replay;
         this.replay = null;
         this.targeting = null;
-        setTimeout(() => old.dispose(), 1300 / Math.max(0.5, this.speed));
+        this.retiring.add(old);
+        // The terminal boss scene belongs to the result presentation, including a backgrounded tab.
+        if(old.setup.roomType!=='boss')setTimeout(() => {if(this.retiring.delete(old))old.dispose()},1300/Math.max(.5,this.speed));
         this.pendingQ = null;
         this.drawControls();
         // the room report (gains, losses) follows from the run
@@ -140,6 +169,8 @@ export class DelvePlayer {
   private finish() {
     if (this.finished) return;
     this.finished = true;
+    this.cancelRoomCue();
+    sfx.stopBattleTimers();
     clear(this.controls);
     this.onDone(this.result!);
   }
@@ -153,18 +184,22 @@ export class DelvePlayer {
     if (!hit) return;
     this.give(this.targeting, hit.id);
   };
+  private cancelTarget(){const kind=this.targeting?.kind;this.targeting=null;this.drawControls();this.controls.querySelector<HTMLButtonElement>(`[data-order="${kind}"]`)?.focus()}
+  private onControlKey=(e:KeyboardEvent)=>{if(e.key==='Escape'&&this.targeting){this.cancelTarget();e.preventDefault()}};
 
   private give(o: (typeof ORDER_UI)[number], target?: string) {
     if (!this.replay) return;
+    const targetName=target?this.replay.targets(o.target==='ally'?0:1).find(t=>t.id===target)?.name:undefined;
     const res = this.replay.order(o.kind, target);
     this.targeting = null;
-    this.flash(res === 'ok' ? `${o.label}!` : res);
-    if (res === 'ok') sfx.ui('click');
     this.drawControls();
+    this.flash(res === 'ok' ? `${o.label}${targetName?' → '+targetName:''} accepted — ${ORDERS[o.kind].cost} ember${ORDERS[o.kind].cost>1?'s':''}. ${o.hint}.` : `${o.label}: ${res}`);
+    this.controls.querySelector<HTMLButtonElement>('[data-order]:not(:disabled), .turnback')?.focus({preventScroll:true});
+    sfx.cue(res==='ok'?'orderOk':'orderNo');
   }
 
   private flash(text: string) {
-    const n = el('div', { class: 'order-flash' }, text);
+    const n = el('div', { class: 'order-flash',role:'status' }, text);
     this.controls.append(n);
     setTimeout(() => n.remove(), 1400);
   }
@@ -186,17 +221,30 @@ export class DelvePlayer {
       for (const o of ORDER_UI) {
         const cost = ORDERS[o.kind].cost;
         row.push(el('button', {
-          type: 'button', class: 'order', title: `${o.hint} (${cost} ember${cost > 1 ? 's' : ''})`,
+          type: 'button', class: 'order', 'data-order':o.kind, title: `${o.hint} (${cost} ember${cost > 1 ? 's' : ''})`,
           'aria-pressed': String(this.targeting?.kind === o.kind),
           onclick: () => { if (o.target === 'none') this.give(o); else { this.targeting = this.targeting?.kind === o.kind ? null : o; this.drawControls(); } },
         }, `${o.label} ${'◆'.repeat(cost)}`));
       }
-      if (this.targeting) row.push(el('span', { class: 'hint' }, `Click ${this.targeting.target === 'ally' ? 'a hero' : 'an enemy'}`));
+      if (this.targeting){
+        const order=this.targeting,targets=this.replay.targets(order.target==='ally'?0:1);
+        const select=el('select',{'aria-label':`Target for ${order.label}`},...targets.map(t=>el('option',{value:t.id},`${t.name}${t.downed?' (downed)':''}`)));
+        row.push(el('span', { class: 'hint' }, `Click ${order.target === 'ally' ? 'a hero' : 'an enemy'}, or choose:`),select,
+          el('button',{type:'button',disabled:!targets.length,onclick:()=>this.give(order,select.value)},`Confirm ${order.label}`),
+          el('button',{type:'button',onclick:()=>this.cancelTarget()},'Cancel targeting'));
+      }
     }
     row.push(el('button', { type: 'button', class: 'turnback', disabled: this.turnBackUsed, 'aria-pressed': String(this.wantTurnBack), title: 'Once per delve: the party turns for home at the next doorway', onclick: () => this.turnBack() },
       this.turnBackUsed ? 'Turned back' : this.wantTurnBack ? 'Turning back…' : 'Turn back'));
     this.controls.append(...row.filter((x): x is Node => !!x));
     this.drawEmbers();
+    this.syncOrderButtons();
+    if(this.targeting)this.controls.querySelector<HTMLSelectElement>('select')?.focus({preventScroll:true});
+  }
+
+  private syncOrderButtons(){
+    if(!this.replay)return;
+    for(const o of ORDER_UI){const button=this.controls.querySelector<HTMLButtonElement>(`[data-order="${o.kind}"]`);if(!button)continue;const state=this.replay.orderAvailability(o.kind);button.disabled=!state.ready;button.textContent=`${o.label} ${'◆'.repeat(state.cost)}${state.seconds?` · ${state.seconds}s`:''}`;button.title=`${o.hint}. ${state.reason||`${state.cost} ember${state.cost>1?'s':''}`}`;}
   }
 
   // ---------- the Council ----------
@@ -237,7 +285,7 @@ export class DelvePlayer {
 
   private openEvent(q: Extract<DelveRequest, { kind: 'event' }>) {
     this.councilOpen = true;
-    setTimeout(() => sfx.room('event'), 300);
+    this.roomCue('event', 300);
     const leaderId = q.entry.call?.leader ?? '';
     const lv = this.view.voices?.[leaderId];
     if (lv) sfx.voice(lv.race, lv.sex, q.event.choices[q.suggested].label, 'murmur');

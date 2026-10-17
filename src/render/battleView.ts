@@ -95,6 +95,8 @@ export class BattleReplay {
   private lastCine = -99;
   private freeze = 0;
   private readonly blasts = new Set<string>();
+  private readonly labels=new Set<HTMLElement & {__at?:THREE.Vector3;__t?:number}>();
+  private disposed=false;
   private torchDropped: THREE.Vector3 | null = null;
   /** When the fight went into overtime: the torchlight shrinks as the dark closes in. */
   private overtimeAt = -1;
@@ -145,6 +147,8 @@ export class BattleReplay {
     return this.live && !this.fight.over ? this.fight.order(kind, targetId) : 'over';
   }
   get embers() { return this.fight.embersLeft; }
+  orderAvailability(kind:OrderKind){return this.fight.orderAvailability(kind)}
+  targets(team:number){return [...this.units.values()].filter(u=>u.team===team&&u.alive).map(u=>({id:u.id,name:u.name,downed:u.downed}))}
 
   /** The Scout's Lens: a live read on one unit. */
   inspect(id: string): { name: string; level: number; team: number; hp: number; maxHp: number; energy: number; intent: string; statuses: string[]; downed: boolean } | null {
@@ -168,7 +172,28 @@ export class BattleReplay {
     return best;
   }
 
-  dispose() { this.hazards.dispose(this.root); this.scene.world.remove(this.root); this.fx.clear(); this.overlay.querySelectorAll('.fx-label').forEach((n) => n.remove()); }
+  dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.hazards.dispose(this.root);
+    this.scene.world.remove(this.root);
+    this.fx.clear();
+    const geometries = new Set<THREE.BufferGeometry>();
+    const materials = new Set<THREE.Material>();
+    this.root.traverse(node => {
+      if (!(node instanceof THREE.Mesh)) return;
+      geometries.add(node.geometry);
+      for (const material of Array.isArray(node.material) ? node.material : [node.material]) {
+        if (material !== unitMaterial) materials.add(material);
+      }
+    });
+    for (const geometry of geometries) geometry.dispose();
+    for (const material of materials) material.dispose();
+    this.root.clear();
+    this.units.clear();
+    for (const label of this.labels) label.remove();
+    this.labels.clear();
+  }
 
   get done() { return this.evIdx >= this.events.length && (!this.live || this.fight.over); }
 
@@ -249,15 +274,18 @@ export class BattleReplay {
     el.textContent = text;
     (el as HTMLElement & { __at?: THREE.Vector3; __t?: number }).__at = at.clone();
     (el as HTMLElement & { __t?: number }).__t = 0;
+    this.labels.add(el);
     this.overlay.append(el);
   }
 
-  private banner(text: string, sub?: string) {
+  private banner(text: string, sub?: string,persistent=false) {
     const el = document.createElement('div');
     el.className = 'fx-label banner';
-    el.innerHTML = text + (sub ? `<small>${sub}</small>` : '');
+    el.textContent = text;
+    if(sub){const small=document.createElement('small');small.textContent=sub;el.append(small)}
+    this.labels.add(el);
     this.overlay.append(el);
-    setTimeout(() => el.remove(), 1800);
+    if(!persistent)setTimeout(() => {el.remove();this.labels.delete(el)}, 1800);
   }
 
   private startCine(at: THREE.Vector3, end = false) {
@@ -435,7 +463,9 @@ export class BattleReplay {
         A?.ending(r === 'victory');
         const cheer = [...this.units.values()].find((x) => x.team === 0 && x.alive && !x.downed && x.voice);
         if (r === 'victory' && cheer?.voice) setTimeout(() => A?.voice(cheer.voice!.race, cheer.voice!.sex, 'we did it', 'cheer', 0), 500);
-        this.banner(r === 'victory' ? 'VICTORY' : r === 'fled' ? 'FELL BACK' : 'WIPED', r === 'victory' ? 'The way on is clear' : r === 'fled' ? 'The party got out' : 'The dark takes them');
+        const boss=this.setup.roomType==='boss'&&r==='victory';
+        this.banner(boss?'BOSS DEFEATED':r === 'victory' ? 'VICTORY' : r === 'fled' ? 'FELL BACK' : 'WIPED', boss?'The company has earned its return':r === 'victory' ? 'The way on is clear' : r === 'fled' ? 'The party got out' : 'The dark takes them',boss);
+        if(r==='victory')for(const u of this.units.values())if(u.team===0&&u.alive&&!u.downed){u.anim='celebrate';u.animStart=this.t;u.animDur=6}
         this.startCine(new THREE.Vector3(), true);
         break;
       }
@@ -523,13 +553,14 @@ export class BattleReplay {
     if (L && L.alive && !this.torchDropped) { const [x, y] = this.sample(L, this.t); this.scene.torch.position.copy(this.world(x, y, 1.3)); this.scene.setTorch(this.opts.torchFuel * dark, flicker); }
     else if (this.torchDropped) { this.scene.torch.position.copy(this.torchDropped); this.scene.setTorch((this.opts.torchFuel / 2) * dark, flicker); }
     // floating labels
-    for (const el of this.overlay.querySelectorAll<HTMLElement & { __at?: THREE.Vector3; __t?: number }>('.fx-label:not(.banner)')) {
+    for (const el of this.labels) {
+      if(el.classList.contains('banner'))continue;
       el.__t = (el.__t ?? 0) + dtReal;
       const v = el.__at!.clone().project(this.scene.camera);
       el.style.left = `${((v.x + 1) / 2) * this.overlay.clientWidth}px`;
       el.style.top = `${((1 - v.y) / 2) * this.overlay.clientHeight - el.__t * 30}px`;
       el.style.opacity = String(Math.max(0, 1 - Math.max(0, el.__t - 0.8) / 0.5));
-      if (el.__t > 1.4) el.remove();
+      if (el.__t > 1.4) {el.remove();this.labels.delete(el)}
     }
     return slow;
   }

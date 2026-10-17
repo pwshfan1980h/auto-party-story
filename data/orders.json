@@ -11,9 +11,12 @@
     "fallback": { "cost": 2, "cooldown": 9999 }
   },
   "goodBot": {
-    "mendBelowHp": 0.2,
+    "mendBelowHp": 0.35,
     "unleashBelowHp": 0.5,
     "holdBelowHp": 0.6,
-    "reserveForInterrupt": 1
-  }
+    "reserveForInterrupt": 1,
+    "reserveForSummons": 2,
+    "emergencyReviveSeconds": 1
+  },
+  "reaction": { "mendBoost": 3, "mendWindup": 0.1 }
 }

@@ -35,12 +35,12 @@
   "fight/III/boss/2": "victory 50.7s 0d b360520f",
   "fight/III/boss/3": "victory 49.55s 0d d9a1e624",
   "fight/III/boss/4": "victory 60.85s 0d 402147ac",
-  "run/I/1": "retreat f1 r1 0d 62da6b6",
-  "run/I/2": "retreat f3 r9 0d 93987067",
-  "run/I/3": "retreat f3 r11 0d c3fe002c",
-  "run/I/4": "retreat f1 r1 0d 2425338e",
-  "run/II/1": "retreat f5 r6 0d 3ca1b1b0",
-  "run/II/2": "retreat f6 r14 0d 603657a1",
-  "run/II/3": "retreat f4 r0 0d dfee6f6f",
-  "run/II/4": "retreat f5 r8 0d 65bae51e"
+  "run/I/1": "retreat f1 r1 0d c4276ae0",
+  "run/I/2": "retreat f3 r9 0d f1bbd102",
+  "run/I/3": "retreat f3 r11 0d c8af3cd9",
+  "run/I/4": "retreat f1 r1 0d cb2ce3d1",
+  "run/II/1": "retreat f5 r6 0d 26fa8c76",
+  "run/II/2": "retreat f6 r14 0d 72080b8",
+  "run/II/3": "retreat f4 r0 0d 54540edb",
+  "run/II/4": "retreat f5 r8 0d 9ae573a1"
 }

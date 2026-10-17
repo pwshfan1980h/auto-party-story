@@ -1,10 +1,9 @@
 // Party presets for the sim tool and tests (spec 09 §2). Heroes are level-appropriate for the tier.
 import { TIERS } from './data';
 import type { RunHero } from './run';
-import type { Zone } from './types';
+import { ZONE } from './roster';
 
 const RACE: Record<string, string> = { fighter: 'dwarf', cleric: 'human', ranger: 'elf', rogue: 'halfling', mage: 'elf', bard: 'human', alchemist: 'halfling', necromancer: 'human' };
-const ZONE: Record<string, Zone> = { fighter: 'front', rogue: 'middle', cleric: 'back', ranger: 'back', mage: 'back', bard: 'middle', alchemist: 'back', necromancer: 'back' };
 
 /** Three core members, plus a fourth for tiers that expect a party of 4. */
 export const PRESETS: Record<string, string[]> = {

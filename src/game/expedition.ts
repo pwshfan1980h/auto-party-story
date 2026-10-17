@@ -6,16 +6,24 @@ import { hash32 } from '../sim/rng';
 import { applyRun, type RunAftermath } from '../sim/roster';
 import { delveSteps, runRun, type DelveAnswer, type DelveRequest, type RunResult, type RunSetup } from '../sim/run';
 import { campEffect, candidate, hireCost, metRaces, refreshBoard, saveGame, TIER_IDS, type GameState } from './state';
+import { awardClear, COMPANY } from './rewards';
+import type { RunReceipt } from './receipt';
+import { providesSustain } from './preparation';
+import { CLASSES } from '../sim/data';
+import { commissionCost } from './economy';
 
 export interface DelvePlan { partyIds: string[]; leaderId: string; tier: string; doctrine: Doctrine; fromWaystone: boolean }
-export interface DelveOutcome { result: RunResult; aftermath: RunAftermath; unlockedTier?: string; names: Record<string, string>; classes: Record<string, string>; volunteers?: string[]; newRaces?: string[] }
+export interface DelveOutcome { result: RunResult; receipt:RunReceipt; aftermath: RunAftermath; unlockedTier?: string; names: Record<string, string>; classes: Record<string, string>; volunteers?: string[]; newRaces?: string[] }
 
 export function partySizeFor(tier: string) { return TIERS[tier].partySize; }
 
 /** Why a plan can't go yet, or null when it can. */
 export function planProblem(state: GameState, plan: DelvePlan): string | null {
+  if (!TIERS[plan.tier]) return 'That tier does not exist.';
+  if (state.pending) return 'An expedition is already under way.';
   const size = partySizeFor(plan.tier);
   if (plan.partyIds.length === 0) return 'Pick who goes.';
+  if (new Set(plan.partyIds).size !== plan.partyIds.length) return 'Pick each hero only once.';
   if (plan.partyIds.length > size) return `Tier ${plan.tier} takes at most ${size} heroes.`;
   if (!plan.partyIds.includes(plan.leaderId)) return 'Pick a Leader from the party.';
   const tierIdx = TIER_IDS.indexOf(plan.tier);
@@ -34,7 +42,7 @@ function runSetup(state: GameState, plan: DelvePlan): RunSetup {
   const party = plan.partyIds.map((id) => state.roster.find((h) => h.hero.id === id)!);
   return {
     seed: hash32(state.seed, 'run', state.runs), tier: plan.tier,
-    party: party.map((h) => ({ ...h.hero, gearScore: tier.gearScore })), leaderId: plan.leaderId,
+    party: party.map((h) => ({ ...h.hero, gearScore: tier.gearScore+(state.refinements?.[h.hero.id]??0)*COMPANY.economy.serviceGearStep })), leaderId: plan.leaderId,
     doctrine: plan.doctrine, startFloor: plan.fromWaystone ? state.waystones[plan.tier] : undefined, record: true,
     torchBonus: campEffect(state, 'torch'),
   };
@@ -47,7 +55,7 @@ function runSetup(state: GameState, plan: DelvePlan): RunSetup {
 export function beginDelve(state: GameState, plan: DelvePlan): Generator<DelveRequest, RunResult, DelveAnswer> {
   const problem = planProblem(state, plan);
   if (problem) throw new Error(problem);
-  state.pending = { plan, run: state.runs };
+  state.pending = { id:`${state.seed}:${state.runs}`, plan:structuredClone(plan), run: state.runs };
   saveGame(state);
   return delveSteps(runSetup(state, plan));
 }
@@ -64,20 +72,24 @@ function causeOfDeath(result: RunResult, name: string): string {
 }
 
 /** Write a finished delve onto the save: XP, the fallen, coin, waystones, unlocks. */
-export function settleDelve(state: GameState, plan: DelvePlan, result: RunResult): DelveOutcome {
+export function settleDelve(state: GameState, plan: DelvePlan, result: RunResult, runId = state.pending?.id): DelveOutcome {
+  if (!runId || state.lastReceipt?.id===runId || state.pending?.id!==runId || state.pending.run!==state.runs) throw new Error('This expedition has already settled or is no longer current.');
   const party = plan.partyIds.map((id) => state.roster.find((h) => h.hero.id === id)!);
   const leader = party.find((h) => h.hero.id === plan.leaderId)!;
   const names = Object.fromEntries(party.map((h) => [h.hero.id, h.hero.name]));
   const classes = Object.fromEntries(party.map((h) => [h.hero.id, h.hero.classId]));
   const metBefore = new Set(metRaces(state));
+  const before=structuredClone(party);
+  const waystoneBefore=state.waystones[plan.tier]??TIERS[plan.tier].floors[0];
   const aftermath = applyRun(state.roster, party, leader, result, plan.tier, 2 + campEffect(state, 'recovery'));
   for (const id of aftermath.died) {
     const h = state.roster.find((x) => x.hero.id === id)!;
     state.memorial.push({ id, name: h.hero.name, classId: h.hero.classId, raceId: h.hero.raceId, level: h.hero.level, run: state.runs + 1, tier: plan.tier, cause: causeOfDeath(result, h.hero.name) });
   }
   state.roster = state.roster.filter((h) => h.alive);
-  state.coin += result.banked;
   // what the party carried home goes to the stores; the fallen are buried with their gear
+  const clear=awardClear(state,result,runId);
+  state.coin += result.banked;
   state.stash = [...(state.stash ?? []), ...result.found];
   if (result.outcome !== 'wipe') state.waystones[plan.tier] = Math.max(state.waystones[plan.tier] ?? 0, result.floorsReached);
   let unlockedTier: string | undefined;
@@ -93,8 +105,22 @@ export function settleDelve(state: GameState, plan: DelvePlan, result: RunResult
   const newRaces = metRaces(state).filter((r) => !metBefore.has(r));
   refreshBoard(state);
   const volunteers = assist(state);
+  const retreat=result.decisions.slice().reverse().find(d=>d.decision==='retreat');
+  const reason=result.outcome==='cleared'?'The boss was defeated.':result.outcome==='wipe'?'The company was lost.':result.turnBackUsed?'You called the retreat.':retreat?`${names[retreat.leader]??'The Leader'} called the retreat. ${[
+    'The company was judged too hurt to push.', 'Torch fuel was kept for the journey home.',
+    retreat.namedSpotted?'A powerful foe was spotted ahead.':'Bad luck shook the Leader’s confidence; experience makes these calls steadier.',
+    'A valuable pack was worth banking.', 'The next room looked too risky for the company.', 'The route ahead looked too risky.',
+  ][retreat.check]}`:'The company returned to bank what it carried.';
+  const receipt:RunReceipt={id:runId,run:state.runs,tier:plan.tier,outcome:result.outcome,banked:result.banked,balance:state.coin,...clear,
+    heroes:before.map(h=>{const after=party.find(x=>x.hero.id===h.hero.id)!,contribution=result.heroes[h.hero.id];return{id:h.hero.id,name:h.hero.name,classId:h.hero.classId,raceId:h.hero.raceId,levelBefore:h.hero.level,levelAfter:after.hero.level,xpBefore:h.xp,xpAfter:after.xp,xpGained:aftermath.xp[h.hero.id]??0,leadershipBefore:h.hero.leadership,leadershipAfter:after.hero.leadership,fallen:aftermath.died.includes(h.hero.id),carried:result.carried.includes(h.hero.id),dealt:contribution?.dealt??0,healed:contribution?.healed??0,kills:contribution?.kills??0}}),
+    gear:[...result.found],unlockedTier,newRaces,volunteers,waystoneBefore,waystoneAfter:state.waystones[plan.tier]??TIERS[plan.tier].floors[0],
+    floor:result.floorsReached,rooms:result.rooms,fights:result.fights,fightsWon:result.fightsWon,
+    returnReason:reason,
+    ledger:result.ledger.filter(e=>e.room!=='start').slice(-COMPANY.presentation.maxReceiptRooms).map(e=>`Floor ${e.floor} · ${e.room}${e.named?' · '+e.named:''}: ${e.result}${e.gained.length?' · '+e.gained.join(', '):''}${e.lost.length?' · Lost: '+e.lost.join(', '):''}${e.call?' · Leader: '+e.call.reason:''}`),
+  };
+  state.lastReceipt=receipt;
   saveGame(state);
-  return { result, aftermath, unlockedTier, names, classes, volunteers: volunteers.length ? volunteers : undefined, newRaces: newRaces.length ? newRaces : undefined };
+  return { result,receipt, aftermath, unlockedTier, names, classes, volunteers: volunteers.length ? volunteers : undefined, newRaces: newRaces.length ? newRaces : undefined };
 }
 
 /**
@@ -114,6 +140,12 @@ export function assist(state: GameState): string[] {
     v.born = state.runs;
     state.roster.push(v);
     names.push(v.hero.name);
+  }
+  // A full roster without a surviving healer/frontline must still have a way to rebuild.
+  for(const [cls,hasRole]of [ ['cleric',providesSustain],['fighter',(h:import('../sim/roster').RosterHero)=>(CLASSES[h.hero.classId].roles.tank??0)>=2] ] as const){
+    if(!state.roster.some(hasRole) && state.coin<commissionCost(state) && !state.hireBoard.some(h=>hasRole(h)&&hireCost(h)<=state.coin)){
+      const v=candidate(state,1,cls);state.roster.push(v);names.push(v.hero.name);
+    }
   }
   return names;
 }
@@ -135,6 +167,7 @@ export function finishPending(state: GameState): DelveOutcome | null {
 export function delve(state: GameState, plan: DelvePlan): DelveOutcome {
   const problem = planProblem(state, plan);
   if (problem) throw new Error(problem);
+  beginDelve(state,plan);
   return settleDelve(state, plan, runRun(runSetup(state, plan)));
 }
 

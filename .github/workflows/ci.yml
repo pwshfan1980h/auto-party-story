@@ -32,4 +32,32 @@ jobs:
         run: npx vitest run
 
       - name: Simulator smoke test
-        run: npm run sim -- smoke
+        run: npm run sim -- smoke --gate
+
+      - name: Production build
+        run: npm run build
+
+      - name: Intervention and alternative-party gates
+        run: |
+          npm run balance:orders -- --seeds 200 --quick --gate
+          npm run balance:viability -- --seeds 200 --gate
+
+      - name: Paid company campaign gate
+        run: npm run campaign -- --runs 75 --gate
+
+      - name: Install desktop test browsers
+        run: npx playwright install --with-deps chromium firefox
+
+      - name: Production runtime checks
+        run: npm run test:build
+
+      - name: Desktop browser checks
+        run: npm run test:browser
+        env:
+          APS_BROWSERS: chromium,firefox
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-release-evidence
+          path: reports/

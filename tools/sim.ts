@@ -12,19 +12,21 @@ import { runCampaign } from '../src/sim/campaign';
 import type { RoomType } from '../src/sim/types';
 import { fightOnce, runStats, TARGETS } from './metrics';
 import { robustSweep } from './robust';
+import { evidence } from './evidence';
 
 const args = process.argv.slice(2);
 const suite = args.find((a) => !a.startsWith('--')) ?? 'smoke';
 const opt = (k: string, d: string) => { const i = args.indexOf(`--${k}`); return i >= 0 ? args[i + 1] : d; };
 const SEEDS = +opt('seeds', suite === 'smoke' ? '20' : '200');
 const TIER_LIST = opt('tier', 'I,II,III').split(',');
+if(!Number.isSafeInteger(SEEDS)||SEEDS<1||TIER_LIST.some(t=>!TIERS[t]))throw Error('Invalid sample arguments');
 const ROOMS: RoomType[] = ['normal', 'elite', 'horde', 'boss'];
 
 // ---- targets (spec 01/09/12, first pass) ----
 // Hardcore room targets (spec 09 §2b): ordinary rooms are won but cost HP; danger sits in elites, hordes and bosses.
 
 const lines: string[] = [];
-const json: Record<string, unknown> = { suite, seeds: SEEDS, tiers: TIER_LIST, at: new Date().toISOString() };
+const json: Record<string, unknown> = { ...evidence(),suite, seeds: SEEDS, tiers: TIER_LIST };
 const flags: string[] = [];
 const md = (s = '') => lines.push(s);
 const pct = (v: number) => `${(v * 100).toFixed(0)}%`;
@@ -56,7 +58,7 @@ function smoke(): boolean {
   const det = determinism(10);
   const rob = robust(5);
   if (timeouts) flags.push(`${timeouts} fights hit the 180 s limit`);
-  return errors.length === 0 && det && rob;
+  return errors.length === 0 && det && rob && timeouts===0;
 }
 
 function determinism(n = SEEDS): boolean {
@@ -336,6 +338,8 @@ else { console.error(`unknown suite ${suite}`); process.exit(2); }
 md('## Flags (outside targets)');
 md(flags.length ? flags.map((f) => `- ${f}`).join('\n') : 'None.');
 json.flags = flags;
+if(args.includes('--gate')&&flags.length)ok=false;
+json.gate={enabled:args.includes('--gate'),passed:ok,exitCode:ok?0:1};
 json.seconds = (performance.now() - t0) / 1000;
 void ABILITIES;
 

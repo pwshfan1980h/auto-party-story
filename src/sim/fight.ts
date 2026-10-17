@@ -122,7 +122,7 @@ export interface FightResult {
   peakUnits: number;
   embersLeft: number;
   /** Orders issued and how they ended, by kind. */
-  orders: { issued: Record<string, number>; lapsed: number };
+  orders: { issued: Record<string, number>; lapsed: number; rejected:Record<string,number>; trace:{t:number;kind:OrderKind;target?:string;embers:number}[] };
   /** Leader combat calls made, by kind. */
   calls: Record<string, number>;
   /** Rares that got away. */
@@ -254,6 +254,8 @@ export class Fight {
   private callCd: Record<string, number> = {};
   private readonly ordersIssued: Record<string, number> = {};
   private ordersLapsed = 0;
+  private readonly ordersRejected:Record<string,number>={};
+  private readonly orderTrace:{t:number;kind:OrderKind;target?:string;embers:number}[]=[];
   private readonly calls: Record<string, number> = {};
   private readonly escaped: string[] = [];
   private readonly leaderRng: Rng;
@@ -821,7 +823,7 @@ export class Fight {
     if (ab.kind === 'ult' && u.energy < 100 && !(pact && u.energy >= pact.energyAt && u.hp > u.base.maxHp * pact.hpCost * 2)) { u.plan = undefined; return; }
     const t = this.get(plan.targetId);
     if (!t || (!t.alive) || (t.downedLeft > 0 && !ab.effects.some((e) => e.type === 'revive'))) { u.plan = undefined; return; }
-    const self = t === u || (ab.delivery === 'self' && ab.affects !== 'enemies');
+    const self = t === u;
     if (!self) {
       if (this.gap(u, t) > ab.range) return;
       if ((ab.delivery === 'projectile' || ab.delivery === 'telegraph') && !lineOfSight(this.field.nav, u.x, u.y, t.x, t.y)) return;
@@ -1081,7 +1083,7 @@ export class Fight {
       case 'revive':
         if (t.downedLeft > 0) {
           t.downedLeft = 0;
-          t.hp = Math.max(1, Math.round(t.base.maxHp * e.hpPct));
+          t.hp = Math.min(t.base.maxHp,Math.max(1, Math.round(t.base.maxHp * e.hpPct * u.boostNext)));
           t.statuses = t.statuses.filter((s) => s.id !== 'downed');
           this.emit('revive', { src: u.id, dst: t.id });
         }
@@ -1287,7 +1289,18 @@ export class Fight {
   // ----- Player Orders (DESIGN §4) -----
 
   /** Issue a Player Order. Returns why it failed, or 'ok'. */
+  orderAvailability(kind:OrderKind){
+    const seconds=Math.max(0,Math.ceil((Math.max(this.globalOrderCd,this.orderCd[kind]??0)-this.tick)/TICKS_PER_S));
+    const reason=this.result?'Fight over':this.embers<ORDERS[kind].cost?'Not enough embers':seconds?`${seconds}s cooldown`:'';
+    return{ready:!reason,reason,seconds,cost:ORDERS[kind].cost};
+  }
   order(kind: OrderKind, targetId?: string): string {
+    const result=this.tryOrder(kind,targetId);
+    if(result==='ok')this.orderTrace.push({t:r2(this.now),kind,target:targetId,embers:this.embers});
+    else this.ordersRejected[`${kind}: ${result}`]=(this.ordersRejected[`${kind}: ${result}`]??0)+1;
+    return result;
+  }
+  private tryOrder(kind: OrderKind, targetId?: string): string {
     const o = ORDERS[kind];
     if (this.result) return 'over';
     if (this.embers < o.cost) return 'no embers';
@@ -1299,15 +1312,27 @@ export class Fight {
     switch (kind) {
       case 'mend': {
         if (!target || target.team !== 0 || !target.alive) return 'bad target';
-        const healers = party.filter((u) => u.kind === 'hero' && u !== target && (u.roles.heal ?? 0) >= 2);
+        const healers = party.filter((u) => u.kind === 'hero' && this.canAct(u) && !u.order && (u.roles.heal ?? 0) >= 2);
         const downed = target.downedLeft > 0;
+        if(!downed && target.hp>=target.base.maxHp)return 'already healthy';
         // a usable heal or revive: skills off cooldown, or the ultimate only when it's charged
         const usable = (h: Unit, a: string | undefined) => !!a && ABILITIES[a].friendly && ABILITIES[a].effects.some((e) => e.type === (downed ? 'revive' : 'heal'))
-          && (h.cooldowns[a] ?? 0) <= 0.5 && (ABILITIES[a].kind !== 'ult' || h.energy >= 100);
+          && ((h.windup?.ability===a && h.windup.targetId===target.id) || (!h.windup && (h.cooldowns[a] ?? 0)<=0 && (ABILITIES[a].kind!=='ult' || h.energy>=100)))
+          && (target===h || this.gap(h,target)<=(ABILITIES[a].delivery==='self' ? ABILITIES[a].area?.r??ABILITIES[a].range : ABILITIES[a].range));
         const pick = healers.map((h) => ({ h, ab: [...h.skills, h.ult].find((a) => usable(h, a)) }))
           .filter((x) => x.ab).sort((a, b) => this.dist(a.h, target) - this.dist(b.h, target))[0];
         if (!pick) return 'no healer ready';
-        queue(pick.h, pick.ab!, target, 1.5);
+        // Emergency healing never marches a caster into melee or queues behind a long cast.
+        const h=pick.h,ab=ABILITIES[pick.ab!];h.boostNext=ORDERS_DATA.reaction.mendBoost;
+        if(h.windup)h.windup.left=Math.min(h.windup.left,ORDERS_DATA.reaction.mendWindup);
+        else {
+          h.cooldowns[ab.id]=(ab.cooldown??0)/this.stat(h,'atkSpeed');
+          if(ab.kind==='ult'){h.energy=0;h.s.ults++;this.emit('ult',{unit:h.id,ability:ab.id,cine:ab.cine??3})}
+          if(ab.kind==='skill')this.gainEnergy(h,15);
+          h.plan=undefined;h.lastActTick=this.tick;
+          this.emit('order',{kind,unit:h.id,target:target.id,outcome:'obeyed'});
+          this.resolve(h,ab.id,target.id,target.x,target.y);
+        }
         break;
       }
       case 'focus':
@@ -1315,7 +1340,7 @@ export class Fight {
         this.focusId = target.id; this.focusUntil = this.tick + 6 * TICKS_PER_S;
         break;
       case 'guard': {
-        if (!target || target.team !== 0) return 'bad target';
+        if (!target || target.team !== 0 || !this.active(target)) return 'bad target';
         const tank = party.filter((u) => u !== target && (u.roles.tank ?? 0) >= 2).sort((a, b) => this.dist(a, target) - this.dist(b, target))[0];
         if (!tank) return 'no tank';
         this.addStatus(target, 'ward', 5, tank, 1);
@@ -1326,19 +1351,29 @@ export class Fight {
       case 'interrupt': {
         if (!target || target.team !== 1 || !target.windup) return 'nothing to interrupt';
         // only heroes already within reach: an interrupt never pulls the front line across the field
-        const pick = party.map((h) => ({ h, ab: [h.basic, ...h.skills].find((a) => ABILITIES[a].interrupts && (h.cooldowns[a] ?? 0) <= 0.5 && this.gap(h, target) <= ABILITIES[a].range + 1) }))
+        const pick = party.filter(h=>h.kind==='hero' && this.canAct(h) && !h.order).map((h) => ({ h, ab: [h.basic, ...h.skills].find((a) => ABILITIES[a].interrupts && (h.cooldowns[a] ?? 0) <= 0 && this.gap(h, target) <= ABILITIES[a].range + .4) }))
           .filter((x) => x.ab).sort((a, b) => this.dist(a.h, target) - this.dist(b.h, target))[0];
         if (!pick) return 'no interrupt ready';
-        queue(pick.h, pick.ab!, target);
+        // A reaction must stop the observed cast, rather than wait behind another wind-up.
+        const ability=ABILITIES[pick.ab!];
+        this.emit('interrupted',{unit:target.id,by:pick.h.id,ability:target.windup.ability});target.windup=undefined;
+        // Spend the actual ready attack, including its damage/control, with an immediate reaction.
+        // The ember guarantees the observed cancellation; the attack still uses normal hit rules.
+        pick.h.windup=undefined;pick.h.plan=undefined;pick.h.lastActTick=this.tick;
+        pick.h.cooldowns[ability.id]=(ability.cooldown??0)/this.stat(pick.h,'atkSpeed');
+        if(ability.kind==='skill')this.gainEnergy(pick.h,15);
+        this.emit('order',{kind,unit:pick.h.id,target:target.id,outcome:'obeyed'});
+        this.emit('cast',{unit:pick.h.id,ability:ability.id,target:target.id,x:target.x,y:target.y});
+        this.resolve(pick.h,ability.id,target.id,target.x,target.y);
         break;
       }
       case 'unleash': {
         const hero = target && target.team === 0 ? target : party.filter((u) => u.ult && u.energy >= 80).sort((a, b) => b.energy - a.energy)[0];
-        if (!hero || !hero.ult || hero.energy < 80) return 'not charged';
-        hero.energy = 100;
+        if (!hero || !this.active(hero) || !hero.ult || hero.energy < 80 || hero.order) return 'not charged';
         const ab = ABILITIES[hero.ult];
         const aim = ab.delivery === 'self' && ab.affects !== 'enemies' ? hero : this.target(hero, 'mostClustered', ab) ?? nearestTo(foes, hero);
         if (!aim) return 'no target';
+        hero.energy = 100;
         queue(hero, hero.ult, aim);
         break;
       }
@@ -1373,15 +1408,16 @@ export class Fight {
     const bot = ORDERS_DATA.goodBot;
     // keep embers back for interrupts while a foe with a big cast is standing
     const bigCaster = (e: Unit) => !e.minion && [...e.skills, e.ult].some((id) => id && (ABILITIES[id]?.windup ?? 0) >= 0.4);
-    const reserve = foes.some(bigCaster) ? bot.reserveForInterrupt : 0;
+    const summoner=foes.some(e=>[...e.skills,e.ult].some(id=>id&&ABILITIES[id]?.effects.some(effect=>effect.type==='summon')));
+    const reserve = summoner?bot.reserveForSummons:foes.some(bigCaster) ? bot.reserveForInterrupt : 0;
     const spare = (kind: OrderKind) => this.embers - ORDERS[kind].cost >= reserve;
     const downed = this.units.find((u) => u.kind === 'hero' && u.alive && u.downedLeft > 0);
-    if (GOOD_POLICY.mend && downed && this.order('mend', downed.id) === 'ok') return;
+    if (GOOD_POLICY.mend && downed && (spare('mend')||downed.downedLeft<=bot.emergencyReviveSeconds) && this.order('mend', downed.id) === 'ok') return;
+    const caster = foes.find(e=>e.windup && ABILITIES[e.windup.ability].windup>=.4 && !e.minion);
+    if (GOOD_POLICY.interrupt && caster && this.order('interrupt', caster.id) === 'ok') return;
     const hurt = party.filter((u) => u.kind === 'hero' && u.hp / u.base.maxHp < bot.mendBelowHp).sort((a, b) => a.hp / a.base.maxHp - b.hp / b.base.maxHp)[0];
     if (GOOD_POLICY.mend && hurt && spare('mend') && this.order('mend', hurt.id) === 'ok') return;
-    const caster = foes.find((e) => e.windup && ABILITIES[e.windup.ability].windup >= 0.4 && (e.base.maxHp > 300 || !e.minion));
-    if (GOOD_POLICY.interrupt && caster && this.order('interrupt', caster.id) === 'ok') return;
-    const prey = foes.find((e) => e.rare) ?? foes.find((e) => !e.minion && foes.some((m) => m.minion)) ?? foes.find((e) => ['mender', 'summoner'].includes(ENEMIES[e.defId]?.archetype ?? ''));
+    const prey = foes.find((e) => e.rare) ?? foes.find((e) => ENEMIES[e.defId]?.rank!=='boss' && ['mender', 'summoner'].includes(ENEMIES[e.defId]?.archetype ?? ''));
     if (GOOD_POLICY.focus && prey && this.focusId !== prey.id && spare('focus') && this.order('focus', prey.id) === 'ok') return;
     // brace when outnumbered and hurting; that's when a party-wide ward pays for its embers
     const partyHp = party.reduce((s2, u) => s2 + u.hp / u.base.maxHp, 0) / Math.max(1, party.length);
@@ -1406,7 +1442,7 @@ export class Fight {
       stuckSeconds: this.stuckSeconds,
       peakUnits: this.peakUnits,
       embersLeft: this.embers,
-      orders: { issued: this.ordersIssued, lapsed: this.ordersLapsed },
+      orders: { issued: this.ordersIssued, lapsed: this.ordersLapsed, rejected:this.ordersRejected,trace:this.orderTrace },
       calls: this.calls,
       escaped: this.escaped,
       field: { w: this.field.w, h: this.field.h, attempt: this.field.attempt, fallback: this.field.fallback, cover: this.field.cover.length, hazards: this.field.hazards.length },

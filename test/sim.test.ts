@@ -100,6 +100,11 @@ describe('the Delve', () => {
     };
     expect(err(10)).toBeLessThan(err(2) / 3);
   });
+  it('reads a long expedition’s actual fuel instead of clipping it to ten',()=>{
+    const L=leaderProfile({id:'x',name:'X',raceId:'human',leadership:10});
+    const d=decide(L,{hp:1,fallen:0,torch:36,pack:0,packValue:0,luck:0,tier:1,floor:1,roomsHome:8},generateFloor(5,'I',1,false),0,stream(7));
+    expect(d.read.torch).toBeGreaterThan(30);expect(d.check).not.toBe(2);
+  });
   it('runs are deterministic and Hardcore deaths are permanent', () => {
     const p = party(PRESETS.starter, 'II');
     const a = runRun({ seed: 9, tier: 'II', party: p, leaderId: p[0].id });

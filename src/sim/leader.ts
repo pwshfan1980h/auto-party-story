@@ -127,7 +127,7 @@ export function decide(L: LeaderProfile, truth: PartyState, map: FloorMap, at: n
   const doc = disciplineBroken ? 'balanced' : doctrine;
   const see = (v: number) => Math.max(0, Math.min(1, v + rank.noise * (2 * rng.next() - 1)));
   const read = {
-    hp: see(truth.hp), torch: see(truth.torch / 10) * 10, pack: see(truth.pack), packValue: see(truth.packValue),
+    hp: see(truth.hp), torch: Math.max(0,truth.torch+rank.noise*(2*rng.next()-1)*10), pack: see(truth.pack), packValue: see(truth.packValue),
     luck: Math.max(-1, Math.min(1, truth.luck + rank.noise * (2 * rng.next() - 1))),
   };
   const checks: CheckState[] = ['skip', 'skip', 'skip', 'skip', 'skip', 'skip'];

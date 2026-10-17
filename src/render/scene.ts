@@ -12,6 +12,7 @@ export class BattleScene {
   /** Where the camera looks and how far it is pushed in (1 = the wide shot). */
   focus = new THREE.Vector3();
   zoom = 1;
+  allowShake = true;
   /** Half the visible height at zoom 1, in tiles; set from the battlefield size. */
   frame = 5;
   private shakeLeft = 0;
@@ -42,7 +43,7 @@ export class BattleScene {
     this.renderer.setSize(Math.max(1, Math.round(w / f)), Math.max(1, Math.round(h / f)), false);
   }
 
-  shake(mag: number, secs: number) { this.shakeMag = mag; this.shakeLeft = secs; }
+  shake(mag: number, secs: number) { if(this.allowShake){this.shakeMag = mag; this.shakeLeft = secs;} }
 
   /** Light radius follows torch fuel (0–10). */
   setTorch(fuel: number, flicker: number) {
@@ -51,12 +52,12 @@ export class BattleScene {
   }
 
   render(dt: number) {
-    const aspect = this.canvas.clientWidth / Math.max(1, this.canvas.clientHeight);
+    const aspect = Math.max(1,this.canvas.clientWidth) / Math.max(1, this.canvas.clientHeight);
     const half = this.frame / this.zoom;
     const c = this.camera;
     c.left = -half * aspect; c.right = half * aspect; c.top = half; c.bottom = -half;
     let sx = 0, sy = 0;
-    if (this.shakeLeft > 0) { this.shakeLeft -= dt; sx = (Math.random() - 0.5) * this.shakeMag; sy = (Math.random() - 0.5) * this.shakeMag; }
+    if (this.shakeLeft > 0 && this.allowShake) { this.shakeLeft -= dt; sx = (Math.random() - 0.5) * this.shakeMag; sy = (Math.random() - 0.5) * this.shakeMag; }
     c.position.copy(this.focus).addScaledVector(ISO_DIR, 40).add(new THREE.Vector3(sx, sy, 0));
     c.lookAt(this.focus);
     c.updateProjectionMatrix();

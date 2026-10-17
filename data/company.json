@@ -1,0 +1,5 @@
+{
+  "rewards": { "choices": 3, "dryClearLimit": 2, "firstClearCoin": [80, 200, 450] },
+  "economy": { "commissionBase": 50, "commissionPerLevel": 25, "serviceBase": 80, "servicePerLevel": 35, "serviceCap": 5, "serviceGearStep": 3, "salvagePerTier": 15, "boardRefreshBase": 25 },
+  "presentation": { "clearHoldMs": 1500, "finalHoldMs": 3000, "maxReceiptRooms": 80 }
+}
