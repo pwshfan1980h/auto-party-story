@@ -403,7 +403,7 @@ export class Sfx {
     if (!this.gate('steps', 0.2)) return;
     const t0 = this.now;
     for (let i = 0; i < count; i++) {
-      const t = t0 + i * gap + (Math.random() - 0.5) * 0.04;
+      const t = t0 + Math.max(0, i * gap + (Math.random() - 0.5) * 0.04);
       const o = this.out(i % 2 ? 0.15 : -0.15, 0.3);
       this.tone(o, t, 0.06, 0.25, 'sine', 120, 60, 0.002);
       this.noise(o, t, 0.07, 0.22, 'bandpass', 700, 300, 1.5, 0.002);
